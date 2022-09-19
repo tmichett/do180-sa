@@ -1,0 +1,45 @@
+:pygments-style: tango
+:source-highlighter: pygments
+:toc:
+:toclevels: 7
+:sectnums:
+:sectnumlevels: 6
+:numbered:
+:chapter-label:
+:icons: font
+ifndef::env-github[:icons: font]
+ifdef::env-github[]
+:status:
+:outfilesuffix: .adoc
+:caution-caption: :fire:
+:important-caption: :exclamation:
+:note-caption: :paperclip:
+:tip-caption: :bulb:
+:warning-caption: :warning:
+endif::[]
+:imagesdir: ./images/
+
+
+=== What types of container formats exist?
+
+* lxd, used by lxc runtime   https://linuxcontainers.org/
+* aci from appc https://github.com/appc/spec/blob/master/spec/aci.md#app-container-image  used by rkt from coreos
+* docker (v1)  deprecated 2/28/2017 https://github.com/moby/moby/blob/master/image/spec/v1.md
+* docker (2v1) overly complicated b/c of backwards compat with docker v1 https://github.com/docker/distribution/blob/master/docs/spec/manifest-v2-1.md
+* docker (2v2)  https://github.com/docker/distribution/blob/master/docs/spec/manifest-v2-2.md
+* oci (originally based on docker 2v2) https://github.com/opencontainers/image-spec/blob/master/spec.md
+
+.Inspecting the format type of an image
+[source,bash]
+----
+$ skopeo inspect docker://k8s.gcr.io/pause
+$ podman pull k8s.gcr.io/pause:latest
+$ podman inspect k8s.gcr.io/pause:latest | grep Manifest
+        "ManifestType": "application/vnd.docker.distribution.manifest.v2+json",
+----
+
+=== What types of container formats are supported by the public cloud vendors?
+
+* Google cloud: https://cloud.google.com/container-registry/docs/image-formats 
+* Azure: https://docs.microsoft.com/en-us/azure/container-registry/container-registry-image-formats
+* aws: https://docs.aws.amazon.com/AmazonECR/latest/userguide/image-manifest-formats.html

@@ -38,7 +38,22 @@ The content topics are based on learner feedback and questions asked during vari
 //include::Introduction.adoc[]
 
 :sectnums:
-include::Chapter1.adoc[Chapter 1: Introducing Container Technology]
+include::Chapter1.adoc[]
+
+include::Chapter2.adoc[]
+
+include::Chapter3.adoc[]
+
+include::Chapter4.adoc[]
+
+include::Chapter5.adoc[]
+
+include::Chapter6.adoc[]
+
+include::Chapter7.adoc[]
+
+include::Chapter8.adoc[]
+
 
 
 // Appendix Section below here

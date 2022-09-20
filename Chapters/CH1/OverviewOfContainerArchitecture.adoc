@@ -28,7 +28,7 @@ image::view-master.png[view-master]
 
 From `man 7 namespaces`:
 
-[quote, namespaces man page]
+[quote]
 ____
 
        A  namespace  wraps  a global system resource in an abstraction that makes it appear to the processes within the namespace that they have their own

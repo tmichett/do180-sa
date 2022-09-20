@@ -1,0 +1,248 @@
+:pygments-style: tango
+:source-highlighter: pygments
+:toc:
+:toclevels: 7
+:sectnums:
+:sectnumlevels: 6
+:numbered:
+:chapter-label:
+:icons: font
+ifndef::env-github[:icons: font]
+ifdef::env-github[]
+:status:
+:outfilesuffix: .adoc
+:caution-caption: :fire:
+:important-caption: :exclamation:
+:note-caption: :paperclip:
+:tip-caption: :bulb:
+:warning-caption: :warning:
+endif::[]
+:imagesdir: ./images/
+
+
+=== How to run "My First Container"?
+
+Two essential details needed to run a containerized process are:
+
+. The container image
+. The command to execute inside the container
+
+Here are some different ways to run the command `cat /etc/redhat-release`:
+[source,bash]
+----
+[student@workstation ~]$ podman run 9a3387c8f6bc cat /etc/redhat-release
+Red Hat Enterprise Linux Server release 7.9 (Maipo)
+
+[student@workstation ~]$ podman run e64297b706b7 cat /etc/redhat-release
+Red Hat Enterprise Linux Server release 7.5 (Maipo)
+
+[student@workstation ~]$ podman run rhel7:7.7 cat /etc/redhat-release
+Red Hat Enterprise Linux Server release 7.7 (Maipo)
+----
+
+What about running a container from an image that hasn't been _pulled_ yet ?
+
+[source,bash]
+----
+[student@workstation ~]$ podman run rhel7:7.8 cat /etc/redhat-release
+Resolved "rhel7" as an alias (/etc/containers/registries.conf.d/001-rhel-shortnames.conf)
+Trying to pull registry.access.redhat.com/rhel7:7.8...
+Getting image source signatures
+Checking if image destination supports signatures
+Copying blob b13ffc206103 done
+Copying blob 872582724f33 done
+Copying config 9da37a6819 done
+Writing manifest to image destination
+Storing signatures
+Red Hat Enterprise Linux Server release 7.8 (Maipo)
+----
+
+
+Notice several images have been pulled and are available from your local container storage.  List them with `podman images` like:
+
+[source,bash]
+----
+[student@workstation ~]$ podman images
+REPOSITORY                        TAG         IMAGE ID      CREATED      SIZE
+registry.access.redhat.com/rhel7  latest      c7344c9fb18c  3 weeks ago  216 MB
+registry.access.redhat.com/rhel7  7.8         9da37a681956  2 years ago  215 MB
+registry.access.redhat.com/rhel   7.7         6682529ce3fa  2 years ago  215 MB
+registry.access.redhat.com/rhel7  7.7         6682529ce3fa  2 years ago  215 MB
+----
+
+
+Let’s take a closer look at the cat commands that were executed using `podman run`:
+
+[source,bash]
+----
+[student@workstation ~]$  podman run --help
+NAME:
+   podman run - Run a command in a new container
+
+USAGE:
+   podman run [command options] IMAGE [COMMAND [ARG...]]
+----
+
+Containers will exit after command execution.  So let’s see what info we can find on those
+Not in ps output.  Look for all those `cat /etc/redhat-release` commands
+
+[source,bash]
+----
+[student@workstation ~]$  ps -ef | grep cat
+gdm       4068  3897  0 16:15 ?        00:00:00 /usr/libexec/gsd-print-notifications
+root      7313  6645  0 18:30 pts/0    00:00:00 grep --color=auto ca
+----
+
+They are not running anymore.  To get some extra information about them, Use `podman ps -a` instead:
+
+[source,bash]
+----
+[student@workstation ~]$ podman ps
+
+[student@workstation ~]$ podman ps -a
+CONTAINER ID   IMAGE                                      COMMAND                  CREATED              STATUS                          PORTS   NAMES                IS INFRA
+27a3d872ff92   registry.access.redhat.com/rhel:7.4        cat /etc/redhat-rel...   About a minute ago   Exited (0) About a minute ago           confident_dubinsky   false
+
+6905b9e93f0d   registry.access.redhat.com/rhel7:7.5-404   cat /etc/redhat-rel...   6 minutes ago        Exited (0) 6 minutes ago                dreamy_panini        false
+
+de3fa91850ee   registry.access.redhat.com/rhel7:latest    cat /etc/redhat-rel...   6 minutes ago        Exited (0) 6 minutes ago                competent_bell       false
+----
+
+
+Some images have prebuilt commands that will be executed if the COMMAND is missing from the `podman run`:
+
+[source,bash]
+----
+[student@workstation ~]$  podman inspect registry.access.redhat.com/rhel7:latest | less
+...SNIP...
+"Cmd": [
+     "/bin/bash"
+],
+...SNIP...
+----
+
+So what happens when we run this without giving any command:
+[source,bash]
+----
+[student@workstation ~]$  podman run registry.access.redhat.com/rhel7:latest
+[student@workstation ~]$
+----
+
+What just happened?... Did it fail? ps -a (no, just non-interactive)
+
+[source,bash]
+----
+[student@workstation ~]$  podman ps -a
+CONTAINER ID   IMAGE                                      COMMAND                  CREATED         STATUS                     PORTS   NAMES                IS INFRA
+04e62d0683ff   registry.access.redhat.com/rhel7:latest    /bin/bash                5 seconds ago   Exited (0) 4 seconds ago           youthful_benz        false
+----
+
+
+So, to make the bash command interactive run:
+[source,bash]
+----
+[student@workstation ~]$  podman run -i registry.access.redhat.com/rhel7:latest
+asdljflkasdjf
+/bin/bash: line 3: asdljflkasdjf: command not found
+
+echo hello world
+hello world
+whoami
+root
+tty
+not a tty
+exit
+----
+
+What about a terminal prompt?  Let’s add the -t flag to allocate a TTY
+
+[source,bash]
+----
+[student@workstation ~]$  podman run -it registry.access.redhat.com/rhel7:latest
+[root@66f4d93191b7 /]# tty
+/dev/pts/0
+[root@66f4d93191b7 /]# exit
+----
+
+That looks much better.
+
+Another useful option when running a container is the -d or detach, for example:
+
+[source,bash]
+----
+[student@workstation ~]$  podman run -d registry.access.redhat.com/rhel7:latest sleep 5000
+829e8264c3f722e047002ebf9bf55b38fcc9b2be3b6f0a2afdfb4088d01a3a7f
+[student@workstation ~]$
+[student@workstation ~]$  podman ps
+CONTAINER ID   IMAGE                                  COMMAND      CREATED         STATUS             PORTS   NAMES
+829e8264c3f7   registry.access.redhat.com/rhel7:7.5   sleep 5000   4 seconds ago   Up 3 seconds ago           loving_montalcini
+----
+
+Sometimes we will want to pass environment variables for the processes in the container.  Do this with `-e`:
+[source,bash]
+----
+[student@workstation ~]$  podman run registry.access.redhat.com/rhel7:latest env
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+TERM=xterm
+HOSTNAME=497c3c41f75f
+container=oci
+HOME=/root
+[student@workstation ~]$ podman run -e FOO="hello world" registry.access.redhat.com/rhel7:latest env
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+TERM=xterm
+HOSTNAME=c730b9772e9a
+container=oci
+FOO=hello world
+HOME=/root
+----
+
+If you’d like to name a container use `--name` like:
+
+[source,bash]
+----
+[student@workstation ~]$ podman run -d --name mycontainer registry.access.redhat.com/rhel7:latest sleep 5000
+09b5adcfbcc0f894ef2d1782ebe5a28ba78e2bc67901814726b8d3b63f9545b5
+
+[student@workstation ~]$  podman ps
+CONTAINER ID   IMAGE                                                      COMMAND                  CREATED          STATUS              PORTS   NAMES
+09b5adcfbcc0   registry.access.redhat.com/rhel7:7.5                       sleep 5000               3 seconds ago    Up 2 seconds ago            mycontainer
+----
+
+To run a new command inside a running container use `podman-exec`:
+
+[source,bash]
+----
+[student@workstation ~]$  podman exec -it mycontainer /bin/bash
+[root@db380c01c168 /]# ps -ef
+UID        PID  PPID  C STIME TTY          TIME CMD
+root         1     0  0 18:58 ?        00:00:00 sleep 5000
+root         5     0  3 19:00 pts/0    00:00:00 /bin/bash
+root        17     5  0 19:00 pts/0    00:00:00 ps -ef
+[root@db380c01c168 /]#
+[root@db380c01c168 /]# cat /proc/1/cgroup
+----
+
+What capabilities and seccomp mode are being used for pid 1 (the sleep 5000 process)?
+[source,bash]
+----
+[root@07d1eca25e39 /]# grep Cap /proc/1/status
+CapInh:    0000000000000000
+CapPrm:    00000000800425fb
+CapEff:    00000000800425fb
+CapBnd:    00000000800425fb
+CapAmb:    0000000000000000
+[root@07d1eca25e39 /]# grep -i seccomp /proc/1/status
+Seccomp:    2
+----
+
+What SELinux label is being used on that containerized sleep process?
+[source,bash]
+----
+[root@db380c01c168 /]# ps -efZ
+LABEL                           UID        PID  PPID  C STIME TTY          TIME CMD
+system_u:system_r:container_t:s0:c478,c651 root 1  0  0 18:58 ?        00:00:00 sleep 5000
+
+[root@db380c01c168 /]# ipcs -a
+[root@db380c01c168 /]# exit
+[student@workstation ~]$
+----

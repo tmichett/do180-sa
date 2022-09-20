@@ -19,7 +19,9 @@ ifdef::env-github[]
 endif::[]
 :imagesdir: ./images/
 
-==  <CHAPTER TITLE>
+==  Chapter 1: Introducing Container Technology
 
 :sectnums:
-include::Chapters/CH1/Section1.adoc[]
+include::Chapters/CH1/OverviewOfContainerTechnology.adoc[]
+include::Chapters/CH1/OverviewOfContainerArchitecture.adoc[]
+include::Chapters/CH1/ManagingContainersWithPodman.adoc[]

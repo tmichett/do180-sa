@@ -30,7 +30,9 @@ ifdef::env-github[]
 endif::[]
 :revnumber: 1.0
 
-// Introduction Section goes below here
+DO180 supplementary activities are designed to expand on topics presented in the standard commercial course.  These activities can be completed within the delivery of a DO180 course in addition to the typical hands-on activities.
+
+The content topics are based on learner feedback and questions asked during various DO180 VT deliveries.
 
 //:sectnums!:
 //include::Introduction.adoc[]

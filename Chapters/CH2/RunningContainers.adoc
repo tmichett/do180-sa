@@ -27,17 +27,27 @@ Two essential details needed to run a containerized process are:
 . The container image
 . The command to execute inside the container
 
-Here are some different ways to run the command `cat /etc/redhat-release`:
+Here are some different ways to run the command `cat /etc/redhat-release`.  Notice the different ways the container image is identified in each of the `podman run` commands:
 [source,bash]
 ----
-[student@workstation ~]$ podman run 9a3387c8f6bc cat /etc/redhat-release
+[student@workstation ~]$ podman run registry.access.redhat.com/rhel7:latest cat /etc/redhat-release
 Red Hat Enterprise Linux Server release 7.9 (Maipo)
 
-[student@workstation ~]$ podman run e64297b706b7 cat /etc/redhat-release
+[student@workstation ~]$ podman run registry.access.redhat.com/rhel7:7.5 cat /etc/redhat-release
 Red Hat Enterprise Linux Server release 7.5 (Maipo)
+
+[student@workstation ~]$ podman run registry.access.redhat.com/rhel7 cat /etc/redhat-release
+Red Hat Enterprise Linux Server release 7.9 (Maipo)
 
 [student@workstation ~]$ podman run rhel7:7.7 cat /etc/redhat-release
 Red Hat Enterprise Linux Server release 7.7 (Maipo)
+
+[student@workstation ~]$ podman images
+REPOSITORY                                       TAG         IMAGE ID      CREATED       SIZE
+registry.access.redhat.com/rhel7                 latest      d19b7e812477  5 days ago    218 MB
+
+[student@workstation ~]$ podman run d19b7e812477 cat /etc/redhat-release
+Red Hat Enterprise Linux Server release 7.9 (Maipo)
 ----
 
 What about running a container from an image that hasn't been _pulled_ yet ?

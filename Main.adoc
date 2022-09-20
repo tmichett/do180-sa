@@ -1,9 +1,9 @@
 = {subject}
-:subject: <Subject for cover goes here>
-:description:  <Description for cover goes here>
-Travis Michette <tmichett@redhat.com>
+:subject: DO180 Supplmentary Activities
+:description:  Extra activities to use with the DO180 course
+Andrew Blum <ablum@redhat.com>
 :doctype: book
-:customer:  GLS
+:customer:  PFE
 :listing-caption: Listing
 :toc:
 :toclevels: 7

@@ -22,6 +22,6 @@ endif::[]
 ==  Chapter 1: Introducing Container Technology
 
 :sectnums:
-include::Chapters/CH1/OverviewOfContainerTechnology.adoc[]
-include::Chapters/CH1/OverviewOfContainerArchitecture.adoc[]
-include::Chapters/CH1/ManagingContainersWithPodman.adoc[]
+1. include::Chapters/CH1/OverviewOfContainerTechnology.adoc[]
+2. include::Chapters/CH1/OverviewOfContainerArchitecture.adoc[]
+3. include::Chapters/CH1/ManagingContainersWithPodman.adoc[]

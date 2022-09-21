@@ -136,7 +136,7 @@ Within this container user_namespace, the *foo* user has a uid=1000. What would 
 
 Use our mapping algorithm: uid=n -> uid=100000+(n-1)
 
-The foo user with uid=1000 inside the container would thus have a uid of 100000+(1000-1) or 100999.
+The foo user with uid=1000 inside the container would thus have a uid of 100000+(1000-1) or *100999*.
 
 We can inspect the ownership of the files in the home directory for the upperdir (ephemeral storage) to prove it:
 
@@ -177,7 +177,7 @@ This command will create a tap device that is injected inside the new networking
 student     3568       1  0 11:00 pts/0    00:00:00 /usr/bin/slirp4netns --disable-host-loopback --mtu=65520 --enable-sandbox --enable-seccomp --enable-ipv6 -c -e 3 -r 4 --netns-type=path /run/user/1000/netns/netns-629e7aae-b8f9-d99a-efd5-4fcbb37183ee tap0
 ----
 
-Also, ping might not work depending on the version of `podman` being used:
+Also, ping might not work depending on the version of `systemd` and `podman` installed:
 
 [source,bash]
 ----
@@ -228,6 +228,7 @@ Thus, `ping` inside your rootless containers will be working in the latest DO180
 === Understanding rootless storage
 
 *Root* = native overlay2 which is a kernel module
+
 *Rootless* = native overlay2 currently though fuse-overlayfs was used in the past
 
 From https://www.redhat.com/sysadmin/podman-rootless-overlay
@@ -250,7 +251,7 @@ To see the mount you’ll have to look inside the mount namespace for a running 
 4026532324 mnt       1  3582 student sleep 5500
 ----
 
-From the `lsns` output the `sleep 5500` has PID 3582.  Check to see what driver is used on the mounts for this containerized process:
+From the `lsns` output the `sleep 5500` has PID *3582*.  Check to confirm the *overlay* driver is used on the */* mount for this containerized process:
 
 [source,bash]
 ----

@@ -22,6 +22,87 @@ endif::[]
 
 === There is a rhel7 container image but not a rhel8 image.  Where is the rhel8 container image?
 
-Check out ubi on https://catalog.redhat.com/software/containers/explore/
+Try to search and find the RHEL8 base image by searching https://catalog.redhat.com/software/containers/explore/ using the "rhel8" search string.
+
+image::rhel8.png[title="rhel8 search results"]
+
+Of the search results returned, try to find a *Scratch* image, one that includes only base RHEL8 software.
+You will not find one.  Instead the images available include additional software or configuration The *rhel8/dotnet-31* image, for example, contains the .NET SDK and Runtime as well as standard RHEL8 packages.
+This may not be what you are looking for, especially, if you want a "vanilla" or *Scratch* RHEL8 image.
+
+Now, repeat your search using *ubi8*
 
 image::ubi8.png[title="ubi8 container image"]
+
+Starting with RHEL8, Red Hat creates and distributes RHEL container images as *Universal Base Images* or *ubi* images.
+If you are looking for a "scratch" image that includes only the standard RHEL8 packages, then look for *ubi* instead of *rhel*.
+
+
+=== How can you install additional packages using a ubi image?
+
+Inspect first the `ubi.repo` file in the ubi8 image:
+
+[source,bash]
+----
+[student@workstation ~]$ podman pull registry.access.redhat.com/ubi8
+Trying to pull registry.access.redhat.com/ubi8...
+
+[student@workstation ~]$ podman run registry.access.redhat.com/ubi8 cat /etc/redhat-release
+Red Hat Enterprise Linux release 8.6 (Ootpa)
+
+[student@workstation ~]$ podman run registry.access.redhat.com/ubi8 cat /etc/yum.repos.d/ubi.repo
+[ubi-8-baseos-rpms]
+name = Red Hat Universal Base Image 8 (RPMs) - BaseOS
+baseurl = https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi8/8/$basearch/baseos/os
+enabled = 1
+gpgkey = file:///etc/pki/rpm-gpg/RPM-GPG-KEY-redhat-release
+gpgcheck = 1
+----
+
+One interesting and useful feature of ubi images is the ability to install additional software via *yum* without a Red Hat subscription.
+
+Consider running this interactive shell to install *httpd* (apache):
+
+[source,bash]
+----
+[student@workstation ~]$ podman run -it registry.access.redhat.com/ubi8 /bin/bash
+[root@7a6899de957c /]# yum install httpd -y
+Updating Subscription Management repositories.
+Unable to read consumer identity
+Subscription Manager is operating in container mode.
+
+This system is not registered with an entitlement server. You can use subscription-manager to register.
+
+Red Hat Universal Base Image 8 (RPMs) - BaseOS                                                                                2.4 MB/s | 803 kB     00:00
+Red Hat Universal Base Image 8 (RPMs) - AppStream                                                                              30 MB/s | 3.0 MB     00:00
+Red Hat Universal Base Image 8 (RPMs) - CodeReady Builder                                                                     332 kB/s |  20 kB     00:00
+Dependencies resolved.
+==============================================================================================================================================================
+ Package                           Architecture          Version                                                    Repository                           Size
+==============================================================================================================================================================
+Installing:
+ httpd                             x86_64                2.4.37-47.module+el8.6.0+15654+427eba2e.2                  ubi-8-appstream-rpms                1.4 M
+Installing dependencies:
+ apr                               x86_64                1.6.3-12.el8
+ ...SNIP...
+ ----
+
+ *Works!* Why? Open your browser to the *baseurl* given in the *ubi8.repo*.  You can insert the x86_64 arch for this example:
+https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi8/8/x86_64/baseos/os
+
+image::ubi-repo.png[title="ubi Package Repository"]
+
+SEE also https://access.redhat.com/articles/4238681
+
+
+=== How are the ubi images created by Red Hat? Do we publish the ubi Containerfile?
+
+The ubi images distributed by Red Hat are not built in the same way a developer may customize one to create an layered image for their application.
+Instead, they are created from a tarball extracted from the root filesystem of kickstarted virtual machines.
+
+A good explanation is given in http://crunchtools.com/ubi-build/
+
+[quote]
+____
+The contents of most base images are created with operating system installers. While many base images utilize a Dockerfile, it probably doesn’t provide what you’re looking for. There’s an underlying chicken and egg problem because without a package manager installed and configured, the step by step instructions of how every file is laid out on disk can’t be easily expressed in a Dockerfile.
+____

@@ -20,4 +20,122 @@ endif::[]
 :imagesdir: ./images/
 
 
-=== 
+=== What are the disadvantages of running rootless containers ?
+
+SEE https://github.com/containers/podman/blob/master/rootless.md
+
+Some subcommands will not work, esp ones that depend on features like cgroups:
+
+[source,bash]
+----
+[student@workstation ~]$ podman pause 382
+Error: pause is not supported for rootless containers
+
+[student@workstation ~]$ podman stats 382
+Error: stats is not supported in rootless mode without cgroups v2
+----
+
+Also, networking is handled differently for rootless as a non-root user has limitations on what it can do to the host’s network:
+
+[source,bash]
+----
+[student@workstation ~]$ podman run -d -p 808:8080 --name myhttpd registry.access.redhat.com/rhscl/httpd-24-rhel7
+Error: error from slirp4netns while setting up port redirection: map[desc:bad request: add_hostfwd: slirp_add_hostfwd failed]
+----
+
+SEE also https://opensource.com/article/19/2/how-does-rootless-podman-work
+
+
+=== Understanding user namespaces
+
+Root = not different from the host
+Rootless = maps user and group IDs to appear to be running under a different ID.
+
+[source,bash]
+----
+[student@workstation ~]$ podman run -it rhel7
+[root@5367563cc886 /]# whoami
+root
+[root@5367563cc886 /]# id
+uid=0(root) gid=0(root) groups=0(root)
+----
+
+From `man 7 user_namespaces`:
+
+[quote]
+____
+
+In  particular, a process can have a normal unprivileged user ID outside a user namespace while at the same time having a user ID of 0 inside the namespace; in other words, the process has full privileges for operations inside the user namespace,  but is unprivileged for operations outside the namespace.
+
+   User and group ID mappings: uid_map and gid_map
+When  a  user  namespace  is  created,  it  starts  out  without  a  mapping  of  user  IDs (group IDs) to the parent user namespace.  The /proc/[pid]/uid_map and /proc/[pid]/gid_map files (available since Linux 3.5) expose the mappings for user and group IDs inside  the  user namespace  for the process pid.
+
+Each line in the uid_map file specifies a 1-to-1 mapping of a range of contiguous user IDs between two  user  namespaces. The first two numbers specify the starting user ID in each of the two user namespaces.  The third  number  specifies  the  length  of  the mapped range.
+____
+
+
+[source,bash]
+----
+[root@5367563cc886 ~]$ cat /proc/self/uid_map
+      (start of range)  (parent ns)      (range)
+         0           1000          1
+         1         100000      65536
+----
+
+
+So, the *root* user inside this namespace maps to the user with uid=1000 in the parent namespace (ie the “student” user).
+
+A user with uid=1 in the child namespace would have a uid of 100000 in the parent namespace and increment up from there in the respective namespaces:
+
+[source,bash]
+----
+[root@c0ec71b5ed9e /]# cat /etc/passwd
+[root@c0ec71b5ed9e /]# id 1
+uid=1(bin) gid=1(bin) groups=1(bin)
+[root@c0ec71b5ed9e /]# id 2
+uid=2(daemon) gid=2(daemon) groups=2(daemon)
+[root@c0ec71b5ed9e /]# id 3
+uid=3(adm) gid=4(adm) groups=4(adm)
+----
+
+These users would map to 100000, 100001, and 100002 respectively.
+The child uid -> parent uid mapping for the student@workstation user can be summarized by:
+
+[cols="4a,4a,4a",options=header]
+|===
+|uid (child)|uid (parent)|
+|0|1000
+|1|100000
+|2|100001
+|3|100002
+|4|100003
+|n|100000+(n-1)
+|===
+
+
+
+=== What happens when a new user is created inside this container ?
+
+
+[root@c0ec71b5ed9e /]# useradd foo
+[root@c0ec71b5ed9e /]# id foo
+uid=1000(foo) gid=1000(foo) groups=1000(foo)
+
+
+Within this container user_namespace, the “foo” user has a uid=1000. What would be that user’s id outside the container ?
+
+Use our mapping algorithm: uid=x -> 100000+(x-1)
+
+The foo user with uid=1000 inside the container would thus have a uid of 100000+(1000-1) or 100999.
+
+We can inspect the ownership of the files in the home directory for the upperdir (ephemeral storage) to prove it:
+
+[student@workstation ~]$ podman inspect 99 | less
+(look for UpperDir)
+[student@workstation ~]$ cd /home/student/.local/share/containers/storage/overlay/7088d79675cdfe1be4cb8be64428f30a510108688758b78e33ea9990e8c8edd5/diff
+[student@workstation diff]$ ls
+etc  home  root  run  var
+[student@workstation diff]$ cd home/
+[student@workstation home]$ ls -l
+total 0
+drwx------. 2 100999 100999 62 Sep 21 16:37 foo

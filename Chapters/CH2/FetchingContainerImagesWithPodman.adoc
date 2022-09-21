@@ -94,7 +94,7 @@ What about a different version of rhel7?
 ----
 
 
-=== What about trying to pull using a short-name alias ?
+=== How to pull using a short-name alias ?
 
 Consider:
 
@@ -122,4 +122,4 @@ registry.access.redhat.com/rhel7  latest      2664aa19856f  2 weeks ago    216 M
 registry.access.redhat.com/rhel7  7.7         6682529ce3fa  22 months ago  215 MB
 ----
 
-The shortname alias is available as a convenience. 
+The shortname alias is available as a convenience.

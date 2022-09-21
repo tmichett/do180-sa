@@ -373,7 +373,7 @@ Because the default output from `podman inspect` is a JSON object, tools that ar
 
 To filter the output stream using `jq` *filters* can be applied based on the object and the values you are interested in.
 
-It's best to understand JSON a bit first.
+It is best to understand JSON a bit first.
 
 *JSON* = JavaScript Object Notation
 
@@ -538,3 +538,126 @@ true
 ----
 
 With `jq` there is much more possible.  Consider `man jq` and other `jq` tutorials for more advanced JSON parsing.
+
+
+=== How to use `podman inspect --format` with a Go template?
+
+A *Go template* is a pattern used in golang that can be used to generate specific output.
+
+The *Go template* is an expression passed to `podman inspect --format`.  From https://pkg.go.dev/text/template
+
+[quote]
+____
+Execution of the template walks the structure and sets the cursor, represented by a period '.' and called "dot", to the value at the current location in the structure as execution proceeds.
+
+The input text for a template is UTF-8-encoded text in any format. "Actions" are data evaluations or control structures delimited by "{{" and "}}"; all text outside actions is copied to the output unchanged.
+____
+
+Just like with `jq`, it is critical to understand the different types of values in the input data object: STRING, BOOLEAN, NUMBER, OBJECT, ARRAY
+
+Here are some examples to try:
+
+[source,bash]
+----
+[student@workstation ~]$ podman inspect myhttpd --format '{{.}}'
+{0xc000b43b00}
+[student@workstation ~]$ podman inspect myhttpd --format '{{.Id}}'
+2c3c93d8cfe4cceadc359d98377ca24e7c87576b390a7d505c316369b8720422
+[student@workstation ~]$ podman inspect myhttpd --format '{{.Created}}'
+2022-09-21 13:58:47.711790266 -0400 EDT
+[student@workstation ~]$ podman inspect myhttpd --format '{{.Path}}'
+container-entrypoint
+----
+
+For an values nested inside of an OBJECT:
+
+[source,bash]
+----
+[student@workstation ~]$ podman inspect myhttpd --format '{{.State}}'
+{1.0.2-dev running true false false false false 1614 1603 0  2022-09-21 14:31:41.526823412 -0400 EDT 2022-09-21 14:30:06.842203892 -0400 EDT { 0 []} false /user.slice/user-1000.slice/user@1000.service 0001-01-01 00:00:00 +0000 UTC 0001-01-01 00:00:00 +0000 UTC    false}
+[student@workstation ~]$ podman inspect myhttpd --format '{{.State.Pid}}'
+1614
+[student@workstation ~]$ podman inspect myhttpd --format '{{.State.Running}}'
+true
+----
+
+For ARRAYs use the keyword *index* like:
+
+[source,bash]
+----
+[student@workstation ~]$ podman inspect myhttpd --format '{{.Args}}'
+[/usr/bin/run-httpd]
+[student@workstation ~]$ podman inspect myhttpd --format '{{index .Args 0}}'
+/usr/bin/run-httpd
+[student@workstation ~]$ podman inspect myhttpd --format '{{index .Args 1}}'
+ERRO[0000] Printing inspect output: template: all inspect:1:13: executing "all inspect" at <index .Args 1>: error calling index: reflect: slice index out of range
+----
+
+More complex processing of ARRAYs can occur using the *range* reserved word.  Consider:
+
+[source,bash]
+----
+[student@workstation ~]$ podman inspect myhttpd --format '{{.BoundingCaps}}'
+[CAP_CHOWN CAP_DAC_OVERRIDE CAP_FOWNER CAP_FSETID CAP_KILL CAP_NET_BIND_SERVICE CAP_NET_RAW CAP_SETFCAP CAP_SETGID CAP_SETPCAP CAP_SETUID CAP_SYS_CHROOT]
+[student@workstation ~]$
+[student@workstation ~]$ podman inspect myhttpd --format '{{index .BoundingCaps 0}}'
+CAP_CHOWN
+[student@workstation ~]$ podman inspect myhttpd --format '{{index .BoundingCaps 1}}'
+CAP_DAC_OVERRIDE
+[student@workstation ~]$ podman inspect myhttpd --format '{{index .BoundingCaps 2}}'
+CAP_FOWNER
+[student@workstation ~]$ podman inspect myhttpd --format '{{range .BoundingCaps}}cap: {{end}}'
+cap: cap: cap: cap: cap: cap: cap: cap: cap: cap: cap: cap:
+[student@workstation ~]$ podman inspect myhttpd --format '{{range .BoundingCaps}}cap:{{.}} {{end}}'
+cap:CAP_CHOWN cap:CAP_DAC_OVERRIDE cap:CAP_FOWNER cap:CAP_FSETID cap:CAP_KILL cap:CAP_NET_BIND_SERVICE cap:CAP_NET_RAW cap:CAP_SETFCAP cap:CAP_SETGID cap:CAP_SETPCAP cap:CAP_SETUID cap:CAP_SYS_CHROOT
+[student@workstation ~]$ podman inspect myhttpd --format '{{range .BoundingCaps}}cap:{{.}}\n{{end}}'
+cap:CAP_CHOWN
+cap:CAP_DAC_OVERRIDE
+cap:CAP_FOWNER
+cap:CAP_FSETID
+cap:CAP_KILL
+cap:CAP_NET_BIND_SERVICE
+cap:CAP_NET_RAW
+cap:CAP_SETFCAP
+cap:CAP_SETGID
+cap:CAP_SETPCAP
+cap:CAP_SETUID
+cap:CAP_SYS_CHROOT
+----
+
+Conditionals are possible within a *Go template* as well.  Suppose we are worried if a container includes the capability *CAP_KILL* :
+
+[source,bash]
+----
+[student@workstation ~]$ podman inspect myhttpd --format '{{range .BoundingCaps}} {{.}} {{end}}'
+ CAP_CHOWN  CAP_DAC_OVERRIDE  CAP_FOWNER  CAP_FSETID  CAP_KILL  CAP_NET_BIND_SERVICE  CAP_NET_RAW  CAP_SETFCAP  CAP_SETGID  CAP_SETPCAP  CAP_SETUID  CAP_SYS_CHROOT
+
+[student@workstation ~]$ podman inspect myhttpd --format '{{range .BoundingCaps}}{{if eq . "CAP_KILL"}}eek this can kill{{end}} ok {{end}}'
+ ok  ok  ok  ok eek this can kill ok  ok  ok  ok  ok  ok  ok  ok
+
+----
+
+You can also use this with `podman ps` to help create custom table that are useful to inspect information.
+
+For example,
+
+[source,bash]
+----
+[student@workstation ~]$ podman ps -a --format json
+[student@workstation ~]$ podman ps -a --format='{{.Names}} {{.State}} {{.Image}}'
+[student@workstation ~]$ podman ps -a --format='table {{.Names}} {{.State}} {{.Image}}'
+NAMES              STATE                   IMAGE
+fervent_rhodes     Exited (0) 7 hours ago  registry.access.redhat.com/rhel7:latest
+happy_herschel     Exited (0) 5 hours ago  registry.access.redhat.com/rhel7:latest
+magical_pare       Exited (0) 4 hours ago  registry.access.redhat.com/rhel7:latest
+pensive_edison     Exited (0) 4 hours ago  registry.access.redhat.com/ubi8:latest
+practical_swirles  Exited (0) 4 hours ago  registry.access.redhat.com/ubi8:latest
+elegant_chebyshev  Exited (0) 4 hours ago  registry.access.redhat.com/ubi8:latest
+sad_haslett        Exited (0) 2 hours ago  registry.access.redhat.com/rhscl/httpd-24-rhel7:latest
+myhttpd            Up 2 hours ago          registry.access.redhat.com/rhscl/httpd-24-rhel7:latest
+----
+
+[NOTE]
+======
+Parsing metadata like these examples will also apply to later Chapters that involve Red Hat Openshift Container Platform.  SEE https://www.openshift.com/blog/customizing-oc-output-with-go-templates for ideas on how to apply these parsing techniques to `oc`
+======

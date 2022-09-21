@@ -83,12 +83,11 @@ Dependencies resolved.
 Installing:
  httpd                             x86_64                2.4.37-47.module+el8.6.0+15654+427eba2e.2                  ubi-8-appstream-rpms                1.4 M
 Installing dependencies:
- apr                               x86_64                1.6.3-12.el8
+ apr
  ...SNIP...
+----
 
- ----
-
- *Works!* Why? Open your browser to the *baseurl* given in the *ubi8.repo*.  You can insert the x86_64 arch for this example:
+*Works!* Why? Open your browser to the *baseurl* given in the *ubi8.repo*.  You can insert the x86_64 arch for this example:
 https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi8/8/x86_64/baseos/os
 
 image::ubi-repo.png[title="ubi Package Repository"]

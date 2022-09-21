@@ -27,6 +27,17 @@ Two essential details needed to run a containerized process are:
 . The container image
 . The command to execute inside the container
 
+[source,bash]
+----
+[student@workstation ~]$  podman run --help
+NAME:
+   podman run - Run a command in a new container
+
+USAGE:
+   podman run [command options] IMAGE [COMMAND [ARG...]]
+----
+
+
 Here are some different ways to run the command `cat /etc/redhat-release`.  Notice the different ways the container image is identified in each of the `podman run` commands:
 [source,bash]
 ----
@@ -50,7 +61,7 @@ registry.access.redhat.com/rhel7                 latest      d19b7e812477  5 day
 Red Hat Enterprise Linux Server release 7.9 (Maipo)
 ----
 
-What about running a container from an image that hasn't been _pulled_ yet ?
+What about running a container from an image that has not been _pulled_ yet ?
 
 [source,bash]
 ----
@@ -81,20 +92,9 @@ registry.access.redhat.com/rhel7  7.7         6682529ce3fa  2 years ago  215 MB
 ----
 
 
-Let’s take a closer look at the cat commands that were executed using `podman run`:
+Let’s take a closer look at the `cat /etc/redhat-release` commands that were executed using `podman run`.
 
-[source,bash]
-----
-[student@workstation ~]$  podman run --help
-NAME:
-   podman run - Run a command in a new container
-
-USAGE:
-   podman run [command options] IMAGE [COMMAND [ARG...]]
-----
-
-Containers will exit after command execution.  So let’s see what info we can find on those
-Not in ps output.  Look for all those `cat /etc/redhat-release` commands
+Can we find those in ps output?
 
 [source,bash]
 ----
@@ -103,7 +103,7 @@ gdm       4068  3897  0 16:15 ?        00:00:00 /usr/libexec/gsd-print-notificat
 root      7313  6645  0 18:30 pts/0    00:00:00 grep --color=auto ca
 ----
 
-They are not running anymore.  To get some extra information about them, Use `podman ps -a` instead:
+They are not running anymore.  To get some extra information about all containers that are running or stopped, Use `podman ps -a` instead:
 
 [source,bash]
 ----
@@ -131,7 +131,7 @@ Some images have prebuilt commands that will be executed if the COMMAND is missi
 ...SNIP...
 ----
 
-So what happens when we run this without giving any command:
+So what happens when we run this without giving any command to execute:
 [source,bash]
 ----
 [student@workstation ~]$  podman run registry.access.redhat.com/rhel7:latest
@@ -148,7 +148,7 @@ CONTAINER ID   IMAGE                                      COMMAND               
 ----
 
 
-So, to make the bash command interactive run:
+To make the bash command interactive run:
 [source,bash]
 ----
 [student@workstation ~]$  podman run -i registry.access.redhat.com/rhel7:latest
@@ -188,7 +188,9 @@ CONTAINER ID   IMAGE                                  COMMAND      CREATED      
 829e8264c3f7   registry.access.redhat.com/rhel7:7.5   sleep 5000   4 seconds ago   Up 3 seconds ago           loving_montalcini
 ----
 
-Sometimes we will want to pass environment variables for the processes in the container.  Do this with `-e`:
+It would not make sense to run a container with *BOTH* -it (interactive+tty) and -d (detach).  Think about it, you cannot be interactive and detached at the same time.
+
+Sometimes we will want to set environment variables for use by the process in the container.  Do this with `-e`:
 [source,bash]
 ----
 [student@workstation ~]$  podman run registry.access.redhat.com/rhel7:latest env
@@ -256,3 +258,134 @@ system_u:system_r:container_t:s0:c478,c651 root 1  0  0 18:58 ?        00:00:00 
 [root@db380c01c168 /]# exit
 [student@workstation ~]$
 ----
+
+
+=== How to change the hostname or otherwise identify which container you are running in ?
+
+The hostname will be set to the container id by default:
+
+[source,bash]
+----
+[student@workstation ~]$  podman run -it rhel:latest /bin/bash
+[root@560cf16fe847 /]# uname -n
+560cf16fe847
+
+[student@workstation ~]$  podman ps -a
+CONTAINER ID   IMAGE                                    COMMAND     CREATED         STATUS             PORTS   NAMES
+560cf16fe847   registry.access.redhat.com/rhel:latest   /bin/bash   2 minutes ago   Up 2 minutes ago           kind_elion
+----
+
+
+`/run/.containerenv` tells us that we are in a container:
+
+[source,bash]
+----
+[root@560cf16fe847 /]# ls -l /run/.containerenv
+-rw-r--r--. 1 root root 0 Nov 12 13:44 /run/.containerenv
+----
+
+
+Env tells us what kind:
+
+[source,bash]
+----
+[root@560cf16fe847 /]# env
+container=oci
+----
+
+Hostname could be set to something however:
+
+[source,bash]
+----
+[student@workstation ~]$  podman run --hostname foo --name foo -it rhel:latest /bin/bash
+[root@foo /]# uname -n
+foo
+[root@foo /]# env | grep HOST
+HOSTNAME=foo
+----
+
+
+=== What is that conmon process used for?
+
+First, try running a containerized sleep process:
+
+[source,bash]
+----
+[student@workstation ~]$ podman run -d registry.access.redhat.com/rhel7:latest sleep 2200
+
+[student@workstation ~]$ ps -ef | grep 2200
+student     2171    2160  0 08:52 ?        00:00:00 sleep 2200
+student     2182    2005  0 08:52 pts/0    00:00:00 grep --color=auto 2200
+----
+
+Notice here the `sleep 2200` process\'s parent PID is *2160*.  What process is that?
+
+[source,bash]
+----
+[student@workstation ~]$ ps -ef | grep 2160
+student     2160       1  0 08:52 ?        00:00:00 /usr/bin/conmon --api-version 1 -c 458eb55a5488ba85df6f6573133d3f2fb1d8143ff6cefa17e2278cdaf5caac58 -u 458eb55a5488ba85df6f6573133d3f2fb1d8143ff6cefa17e2278cdaf5caac58 -r /usr/bin/runc -b /home/student/.local/share/containers/storage/overlay-containers/458eb55a5488ba85df6f6573133d3f2fb1d8143ff6cefa17e2278cdaf5caac58/userdata -p /run/user/1000/containers/overlay-containers/458eb55a5488ba85df6f6573133d3f2fb1d8143ff6cefa17e2278cdaf5caac58/userdata/pidfile -n fervent_rhodes --exit-dir /run/user/1000/libpod/tmp/exits --full-attach -l k8s-file:/home/student/.local/share/containers/storage/overlay-containers/458eb55a5488ba85df6f6573133d3f2fb1d8143ff6cefa17e2278cdaf5caac58/userdata/ctr.log --log-level warning --runtime-arg --log-format=json --runtime-arg --log --runtime-arg=/run/user/1000/containers/overlay-containers/458eb55a5488ba85df6f6573133d3f2fb1d8143ff6cefa17e2278cdaf5caac58/userdata/oci-log --conmon-pidfile /run/user/1000/containers/overlay-containers/458eb55a5488ba85df6f6573133d3f2fb1d8143ff6cefa17e2278cdaf5caac58/userdata/conmon.pid --exit-command /usr/bin/podman --exit-command-arg --root --exit-command-arg /home/student/.local/share/containers/storage --exit-command-arg --runroot --exit-command-arg /run/user/1000/containers --exit-command-arg --log-level --exit-command-arg warning --exit-command-arg --cgroup-manager --exit-command-arg cgroupfs --exit-command-arg --tmpdir --exit-command-arg /run/user/1000/libpod/tmp --exit-command-arg --network-config-dir --exit-command-arg  --exit-command-arg --network-backend --exit-command-arg cni --exit-command-arg --runtime --exit-command-arg runc --exit-command-arg --storage-driver --exit-command-arg overlay --exit-command-arg --events-backend --exit-command-arg file --exit-command-arg container --exit-command-arg cleanup --exit-command-arg 458eb55a5488ba85df6f6573133d3f2fb1d8143ff6cefa17e2278cdaf5caac58
+student     2171    2160  0 08:52 ?        00:00:00 sleep 2200
+----
+
+Another way to look at this is with pstree:
+
+[source,bash]
+----
+[student@workstation ~]$ pstree -a | less
+
+|-conmon --api-version 1 -c 458eb55a5488ba85df6f6573133d3f2fb1d8143ff6cefa17e2278cdaf5caac58 -u458eb55a5488ba85df6f6573133d3
+|   |-sleep 2200
+|    -{conmon}
+
+[student@workstation ~]$ /usr/bin/conmon --help
+Usage:
+  conmon [OPTION…] - conmon utility
+----
+
+`conmon` is the parent process for the `sleep 2200` process.
+From https://github.com/containers/conmon
+
+[quote]
+____
+Conmon is a monitoring program and communication tool between a container manager (like Podman or CRI-O) and an OCI runtime (like runc or crun) for a single container.
+
+Upon being launched, conmon (usually) double-forks to daemonize and detach from the parent that launched it. It then launches the runtime as its child. This allows managing processes to die in the foreground, but still be able to watch over and connect to the child process (the container).
+
+While the container runs, conmon does two things:
+
+. Provides a socket for attaching to the container, holding open the container's standard streams and forwarding them over the socket.
+. Writes the contents of the container's streams to a log file (or to the systemd journal) so they can be read after the container's death.
+____
+
+
+=== Can you run an image built from architectures different than the container host ?
+
+No, but you can pull them.  See:
+https://www.redhat.com/sysadmin/specify-architecture-pulling-podman-images
+
+
+[source,bash]
+----
+[student@workstation ~]$ podman pull --arch=arm64 registry.access.redhat.com/ubi8
+[student@workstation ~]$ podman pull registry.access.redhat.com/ubi8
+
+[student@workstation ~]$ podman images
+REPOSITORY                             TAG         IMAGE ID      CREATED        SIZE
+registry.access.redhat.com/rhel7/rhel  latest      e2c37c467077  2 weeks ago    216 MB
+registry.access.redhat.com/rhel7       7.9         e2c37c467077  2 weeks ago    216 MB
+registry.access.redhat.com/rhel7       latest      e2c37c467077  2 weeks ago    216 MB
+registry.access.redhat.com/ubi8        latest      d5c70d09f361  3 weeks ago    246 MB
+<none>                                 <none>      2fd9e1478809  3 weeks ago    225 MB
+----
+
+Trying to run them will cause some errors:
+
+[source,bash]
+----
+[student@workstation ~]$ podman run 2fd9e1478809 uname -a
+Linux f1b40336fff3 4.18.0-348.2.1.el8_5.x86_64 #1 SMP Mon Nov 8 13:30:15 EST 2021 x86_64 x86_64 x86_64 GNU/Linux
+[student@workstation ~]$ podman run d5c70d09f361 uname -a
+standard_init_linux.go:228: exec user process caused: exec format error
+----
+
+It is possible to use a qemu process to emulate different architectures if running multi-architectures is required.  See https://github.com/multiarch/qemu-user-static

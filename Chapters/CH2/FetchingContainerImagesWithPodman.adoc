@@ -95,3 +95,31 @@ What about a different version of rhel7?
 
 
 === What about trying to pull using a short-name alias ?
+
+Consider:
+
+[source,bash]
+----
+[student@workstation ~]$ head /etc/containers/registries.conf.d/001-rhel-shortnames.conf
+[aliases]
+"3scale-amp2/3scale-rhel7-operator-metadata" = "registry.redhat.io/3scale-amp2/3scale-rhel7-operator-metadata"
+"3scale-amp2/3scale-rhel7-operator" = "registry.redhat.io/3scale-amp2/3scale-rhel7-operator"
+"3scale-amp24/wildcard-router" = "registry.redhat.io/3scale-amp24/wildcard-router
+
+[student@workstation ~]$ grep rhel7 /etc/containers/registries.conf.d/001-rhel-shortnames.conf
+"rhel7/open-vm-tools" = "registry.access.redhat.com/rhel7/open-vm-tools"
+"rhel7" = "registry.access.redhat.com/rhel7"
+"rhel7/rhel-atomic" = "registry.access.redhat.com/rhel7/rhel-atomic"
+"rhel7/rhel" = "registry.access.redhat.com/rhel7/rhel"
+
+[student@workstation ~]$ podman pull rhel7:latest
+Trying to pull registry.access.redhat.com/rhel7:latest...
+Getting image source signatures
+
+[student@workstation ~]$  podman images
+REPOSITORY                         TAG       IMAGE ID       CREATED         SIZE
+registry.access.redhat.com/rhel7  latest      2664aa19856f  2 weeks ago    216 MB
+registry.access.redhat.com/rhel7  7.7         6682529ce3fa  22 months ago  215 MB
+----
+
+The shortname alias is available as a convenience. 

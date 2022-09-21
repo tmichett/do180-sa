@@ -20,4 +20,78 @@ endif::[]
 :imagesdir: ./images/
 
 
-=== 
+=== How can you determine the available tags within a repository ?
+
+The `podman search` command has an option `--list-tags` that will list out a number of different image tags available in a given repository.
+
+[source,bash]
+----
+[student@workstation ~]$ podman search registry.access.redhat.com/rhel7 --list-tags
+NAME                              TAG
+registry.access.redhat.com/rhel7  7.9-333
+registry.access.redhat.com/rhel7  7.3-89
+registry.access.redhat.com/rhel7  7.5-245.1527091554
+registry.access.redhat.com/rhel7  7.9-401-source
+registry.access.redhat.com/rhel7  7.3-82
+...SNIP...
+----
+
+This command will list out the first 25 tags given by the registry API.  Alternatively, communication with a registry API is possible using a tool like `curl`.  Consider:
+
+[source,bash]
+----
+[student@workstation ~]$ curl  -L https://registry.access.redhat.com/v2/rhel7/tags/list
+{"name": "rhel7", "tags": ["7.3-74", "7.4-120", "7.2-56", "7.3-89", "7.3-66", "7.5-424", "7.5-245.1527091554", "7.4-129", "7.1-12", "7.6-122", "7.3-82", "7.7-384.1575996163", "7.5-409.1533127727", "7.2-75", "7.2-38", "7.6", "7.7-348", "7.4", ...SNIP....]}
+----
+
+There is also a tool called `skopeo` that can be used to obtain details about a particular repository:
+
+[source,bash]
+----
+[student@workstation ~]$ skopeo inspect docker://registry.access.redhat.com/rhel7
+{
+    "Name": "registry.access.redhat.com/rhel7",
+    "Digest": "sha256:17ef5565008d71f89c8444a8c1141aafd25bd0d6a1ccaecb5f34c517509f9036",
+    "RepoTags": [
+        "7.9-333",
+        "7.3-89",
+        "7.5-245.1527091554",
+        "7.9-401-source",
+
+----
+
+Working directly with registries including different registry APIs is covered in greater detail in Chapter 4.
+
+Now that we can identify an image within a repository that we want, let’s pull a local copy using the *latest* tag:
+
+[source,bash]
+----
+[student@workstation ~]$  podman pull registry.access.redhat.com/rhel7:latest
+9a3387c8f6bc9b63b119dc61ddbaed6bb20795a7b187908ca1b5ecabc5c19aac
+----
+
+How does that compare to:
+
+[source,bash]
+----
+[student@workstation ~]$  podman pull registry.access.redhat.com/rhel7
+9a3387c8f6bc9b63b119dc61ddbaed6bb20795a7b187908ca1b5ecabc5c19aac
+----
+
+Notice they are identified by the same image id.
+
+[NOTE]
+======
+Your specific image IDs may differ than the examples given above.  As the content of images change over time, so will their IDs.
+======
+
+What about a different version of rhel7?
+
+[source,bash]
+----
+[student@workstation ~]$  podman pull registry.access.redhat.com/rhel7:7.7
+6682529ce3faf028687cef4fc6ffb30f51a1eb805b3709d31cb92a54caeb3daf
+----
+
+
+=== What about trying to pull using a short-name alias ?

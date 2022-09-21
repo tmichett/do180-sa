@@ -276,7 +276,7 @@ CONTAINER ID   IMAGE                                    COMMAND     CREATED     
 ----
 
 
-`/run/.containerenv` tells us that we are in a container:
+The existence of `/run/.containerenv` tells us that we are in a container:
 
 [source,bash]
 ----

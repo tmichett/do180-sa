@@ -147,3 +147,67 @@ begin:
 
 
 === What is actually running inside the httpd image from rhscl?
+
+Run a couple of apache daemons using the `rhscl/httpd-24-rhel7` image:
+
+[source,bash]
+----
+[student@workstation ~]$ podman run --name myhttpd -d registry.access.redhat.com/rhscl/httpd-24-rhel7:latest
+[student@workstation ~]$ podman run -d registry.access.redhat.com/rhscl/httpd-24-rhel7:latest
+
+[student@workstation ~]$ podman ps --no-trunc
+CONTAINER ID                                                      IMAGE                                                   COMMAND             CREATED         STATUS             PORTS  NAMES
+CONTAINER ID                                                      IMAGE                                                   COMMAND             CREATED         STATUS             PORTS       NAMES
+ca31ae4a5357d901986b79b39c3df3bdd91b87fa4cb3620cf0b1c3701843c30b  registry.access.redhat.com/rhscl/httpd-24-rhel7:latest  /usr/bin/run-httpd  3 minutes ago   Up 3 minutes ago               sad_haslett
+2c3c93d8cfe4cceadc359d98377ca24e7c87576b390a7d505c316369b8720422  registry.access.redhat.com/rhscl/httpd-24-rhel7:latest  /usr/bin/run-httpd  11 seconds ago  Up 12 seconds ago              myhttpd
+----
+
+The `podman ps` output indicates that `/usr/bin/run-httpd` is the containerized process executed by our container runtime.
+
+To inspect further what is running in a container, we could run another program inside the same namespaces using `podman exec`:
+
+[source,bash]
+----
+[student@workstation ~]$ podman exec -it myhttpd /bin/bash
+bash-4.2$
+bash-4.2$ ps -ef
+UID          PID    PPID  C STIME TTY          TIME CMD
+default        1       0  0 14:55 ?        00:00:00 httpd -D FOREGROUND
+default       40       1  0 14:55 ?        00:00:00 /usr/bin/cat
+default       41       1  0 14:55 ?        00:00:00 /usr/bin/cat
+default       42       1  0 14:55 ?        00:00:00 /usr/bin/cat
+default       43       1  0 14:55 ?        00:00:00 /usr/bin/cat
+default       44       1  0 14:55 ?        00:00:00 httpd -D FOREGROUND
+default       45       1  0 14:55 ?        00:00:00 httpd -D FOREGROUND
+default       54       1  0 14:55 ?        00:00:00 httpd -D FOREGROUND
+default       66       1  0 14:55 ?        00:00:00 httpd -D FOREGROUND
+default       69       1  0 14:55 ?        00:00:00 httpd -D FOREGROUND
+default       90       0  0 15:09 pts/0    00:00:00 /bin/bash
+default       99      90  0 15:10 pts/0    00:00:00 ps -ef
+----
+
+What happened to the run-httpd? pid=1 from the output above indicates `httpd -D FOREGROUND` is running.  No `run-httpd` seems to be running here.
+
+Inspect the contents of `/usr/bin/run-httpd`.  Use `podman exec` like before:
+
+[source,bash]
+----
+[student@workstation ~]$ podman exec -it myhttpd /bin/bash
+bash-4.2$ cat /usr/bin/run-httpd
+...SNIP…
+process_extending_files ${HTTPD_APP_ROOT}/src/httpd-pre-init/ ${HTTPD_CONTAINER_SCRIPTS_PATH}/pre-init/
+
+exec httpd -D FOREGROUND $@
+----
+
+`usr/bin/run-httpd` is a script (a wrapper).  The last command executed is `exec httpd -D FOREGROUND`.  We did see this process and it was pid=1 in this namespace.
+
+The `exec` is important here.  `exec` is a shell (bash) built-in command.  From `man exec`:
+
+[quote]
+____
+exec [-cl] [-a name] [command [arguments]]
+       If  command  is  specified,  it  replaces  the shell.  No new process is created.  The arguments become the arguments to command.
+____
+
+In summary, the container runtime executes `/usr/bin/run-httpd` in isolation.  This command then executes `httpd -D FOREGROUND` with the `exec` built-in.  This `httpd` replaces the `run-httpd` process becoming pid=1 in this namespace.

@@ -108,7 +108,7 @@ uid=3(adm) gid=4(adm) groups=4(adm)
 These users would map to 100000, 100001, and 100002 respectively.
 The child uid -> parent uid mapping for the student@workstation user can thus be summarized by:
 
-[cols="4a,4a,4a",options=header]
+[cols="4a,4a",options=header]
 |===
 |uid (child)|uid (parent)|
 |0|1000

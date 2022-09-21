@@ -251,7 +251,7 @@ To see the mount you’ll have to look inside the mount namespace for a running 
 4026532324 mnt       1  3582 student sleep 5500
 ----
 
-From the `lsns` output the `sleep 5500` has PID *3582*.  Check to confirm the *overlay* driver is used on the *\/* mount for this containerized process:
+From the `lsns` output the `sleep 5500` has PID *3582*.  Check to confirm the *overlay* driver is used on the */* mount for this containerized process:
 
 [source,bash]
 ----

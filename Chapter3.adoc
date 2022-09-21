@@ -19,7 +19,13 @@ ifdef::env-github[]
 endif::[]
 :imagesdir: ./images/
 
-==  <CHAPTER TITLE>
+==  Chapter 3: Managing Containers
 
 :sectnums:
-include::Chapters/CH1/Section1.adoc[]
+include::Chapters/CH3/ContainerLifecycleManagementWithPodman.adoc[]
+
+include::Chapters/CH3/AttachingPersistentStorageToContainers.aodc[]
+
+include::Chapters/CH3/AccessingContainers.adoc[]
+
+include::Chapters/CH3/MappingNetworkPorts.adoc[]

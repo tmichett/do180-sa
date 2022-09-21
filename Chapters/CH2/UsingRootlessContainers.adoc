@@ -166,11 +166,21 @@ drwx------. 2 100999 100999 62 Sep 21 10:45 /home/student/.local/share/container
 
 *Rootless* = Slirp, tap device
 
-Container networking normally uses CNI plugins to configure a bridge, but that would require root.  For rootless, podman will execute /usr/bin/slirp4netns` to setup networking.  
-This command will create a tap device that is injected inside the new networking namespace.
+Container networking normally uses CNI plugins to configure a bridge, but that would require root.  For rootless, podman will execute `/usr/bin/slirp4netns` which provides userspace based networking.
+This command will create a tap device that is injected inside the new networking namespace of the containerized process.
 
-Also, ping might not work depending on the RHEL version:
+[source,bash]
+----
+[student@workstation ~]$ podman run -d registry.access.redhat.com/rhel7:latest sleep 5500
+2a7d8b364faf2c8e825eb0bbadbfab7d113486514b74f78952c0ac29d19d1a95
+[student@workstation ~]$ ps -ef | grep slirp
+student     3568       1  0 11:00 pts/0    00:00:00 /usr/bin/slirp4netns --disable-host-loopback --mtu=65520 --enable-sandbox --enable-seccomp --enable-ipv6 -c -e 3 -r 4 --netns-type=path /run/user/1000/netns/netns-629e7aae-b8f9-d99a-efd5-4fcbb37183ee tap0
+----
 
+Also, ping might not work depending on the version of `podman` being used:
+
+[source,bash]
+----
 [student@workstation ~]$ podman run -it ubi8 /bin/bash
 [root@840855c79201 /]# yum install iputils
 [root@ff226094dfd3 /]# ping google.com
@@ -178,9 +188,12 @@ PING google.com (172.217.1.238) 56(84) bytes of data.
 ^C
 --- google.com ping statistics ---
 57 packets transmitted, 0 received, 100% packet loss, time 57365ms
+----
 
-Fixed per https://bugzilla.redhat.com/show_bug.cgi?id=2037807
+This has been fixed per https://bugzilla.redhat.com/show_bug.cgi?id=2037807
 
+[source,bash]
+----
 [student@workstation ~]$ rpm -q systemd
 systemd-239-58.el8.x86_64
 
@@ -195,12 +208,8 @@ systemd-239-58.el8.x86_64
 - sysctl: if options are prefixed with "-" ignore write errors (#2037807)
 - sysctl: fix segfault (#2037807)
 
-
-https://github.com/containers/podman/blob/main/troubleshooting.md#5-rootless-containers-cannot-ping-hosts
-
 [student@workstation ~]$ sysctl -a | grep ping
 net.ipv4.ping_group_range = 0    2147483647
-
 
 [student@workstation ~]$ podman run -it ubi8 /bin/bash
 [root@34cb445d6819 /]# yum install iputils -y
@@ -211,3 +220,48 @@ PING 8.8.8.8 (8.8.8.8) 56(84) bytes of data.
 64 bytes from 8.8.8.8: icmp_seq=2 ttl=255 time=1.70 ms
 
 [root@34cb445d6819 /]# exit
+----
+
+Thus, `ping` inside your rootless containers will be working in the latest DO180 classroom environments.
+
+
+=== Understanding rootless storage
+
+*Root* = native overlay2 which is a kernel module
+*Rootless* = native overlay2 currently though fuse-overlayfs was used in the past
+
+From https://www.redhat.com/sysadmin/podman-rootless-overlay
+
+[quote]
+____
+The fuse-overlay has been great. However, it is a user-space file system, which means it needs to do almost twice as much work as the kernel. Every read/write has to be interpreted by the fuse-overlay before being passed onto the host kernel. For heavy workloads that hammer the file system, the performance of fuse-overlay suffers. You could see the fuse-overlayfs pegging out the CPU. Bottom line, we should see better performance with native overlayfs, especially for heavy read/write containers in rootless mode. For example, podman build . performance should improve significantly. Note that when writing to volumes, the fuse-overlayfs is seldom used, so performance will not be affected
+____
+
+The change to use the native overlay driver was first introduced in RHEL8.5 https://www.redhat.com/en/blog/whats-new-red-hat-enterprise-linux-85-container-tools See “Better Performance with Native OverlayFS“
+
+To see the mount you’ll have to look inside the mount namespace for a running container:
+
+[source,bash]
+----
+[student@workstation ~]$ lsns -t mnt
+        NS TYPE NPROCS   PID USER    COMMAND
+4026531840 mnt       5  1967 student /usr/lib/systemd/systemd --user
+4026532257 mnt       2  2078 student catatonit -P
+4026532324 mnt       1  3582 student sleep 5500
+----
+
+From the `lsns` output the `sleep 5500` has PID 3582.  Check to see what driver is used on the mounts for this containerized process:
+
+[source,bash]
+----
+[student@workstation ~]$ cat /proc/3582/mounts | grep overlay
+overlay / overlay rw,context="system_u:object_r:container_file_t:s0:c315,c748",relatime,lowerdir=/home/student/.local/share/containers/storage/overlay/l/FXJT5GEBB4CCTSNB6VPCWLO2OE:/home/student/.local/share/containers/storage/overlay/l/CQ5X6VLN4VJJICYQTRKJMGREJY,upperdir=/home/student/.local/share/containers/storage/overlay/6005fbe3808822c8e8e02cf1e8cfd5aadd7fd2333384ca6d72acf489b3b6ede1/diff,workdir=/home/student/.local/share/containers/storage/overlay/6005fbe3808822c8e8e02cf1e8cfd5aadd7fd2333384ca6d72acf489b3b6ede1/work 0 0
+----
+
+Notice also, there is no userspace fuse-overlayfs process running like in older versions of podman:
+
+[source,bash]
+----
+[student@workstation ~]$ ps -ef | grep fuse | grep -v grep
+[student@workstation ~]$
+----

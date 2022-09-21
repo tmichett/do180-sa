@@ -48,17 +48,23 @@ SEE also https://opensource.com/article/19/2/how-does-rootless-podman-work
 
 === Understanding user namespaces
 
-Root = not different from the host
-Rootless = maps user and group IDs to appear to be running under a different ID.
+*Root* = not different from the host
+
+*Rootless* = maps user and group IDs to appear to be running under a different ID.
 
 [source,bash]
 ----
+[student@workstation ~]$ id
+uid=1000(student) gid=1000(student) groups=1000(student),10(wheel) context=unconfined_u:unconfined_r:unconfined_t:s0-s0:c0.c1023
+
 [student@workstation ~]$ podman run -it rhel7
 [root@5367563cc886 /]# whoami
 root
 [root@5367563cc886 /]# id
 uid=0(root) gid=0(root) groups=0(root)
 ----
+
+student has uid=1000 in the global user namespace but is root with uid=0 inside a container.
 
 From `man 7 user_namespaces`:
 
@@ -73,6 +79,7 @@ When  a  user  namespace  is  created,  it  starts  out  without  a  mapping  of
 Each line in the uid_map file specifies a 1-to-1 mapping of a range of contiguous user IDs between two  user  namespaces. The first two numbers specify the starting user ID in each of the two user namespaces.  The third  number  specifies  the  length  of  the mapped range.
 ____
 
+You can inspect this mapping file inside a container by running:
 
 [source,bash]
 ----
@@ -99,7 +106,7 @@ uid=3(adm) gid=4(adm) groups=4(adm)
 ----
 
 These users would map to 100000, 100001, and 100002 respectively.
-The child uid -> parent uid mapping for the student@workstation user can be summarized by:
+The child uid -> parent uid mapping for the student@workstation user can thus be summarized by:
 
 [cols="4a,4a,4a",options=header]
 |===
@@ -116,26 +123,91 @@ The child uid -> parent uid mapping for the student@workstation user can be summ
 
 === What happens when a new user is created inside this container ?
 
+Try it out with:
 
+[source,bash]
+----
 [root@c0ec71b5ed9e /]# useradd foo
 [root@c0ec71b5ed9e /]# id foo
 uid=1000(foo) gid=1000(foo) groups=1000(foo)
+----
 
+Within this container user_namespace, the *foo* user has a uid=1000. What would be that user\’s id outside the container ?
 
-Within this container user_namespace, the “foo” user has a uid=1000. What would be that user’s id outside the container ?
-
-Use our mapping algorithm: uid=x -> 100000+(x-1)
+Use our mapping algorithm: uid=n -> uid=100000+(n-1)
 
 The foo user with uid=1000 inside the container would thus have a uid of 100000+(1000-1) or 100999.
 
 We can inspect the ownership of the files in the home directory for the upperdir (ephemeral storage) to prove it:
 
-[student@workstation ~]$ podman inspect 99 | less
-(look for UpperDir)
-[student@workstation ~]$ cd /home/student/.local/share/containers/storage/overlay/7088d79675cdfe1be4cb8be64428f30a510108688758b78e33ea9990e8c8edd5/diff
-[student@workstation diff]$ ls
-etc  home  root  run  var
-[student@workstation diff]$ cd home/
-[student@workstation home]$ ls -l
-total 0
-drwx------. 2 100999 100999 62 Sep 21 16:37 foo
+[source,bash]
+----
+[student@workstation ~]$ podman images
+REPOSITORY                        TAG         IMAGE ID      CREATED     SIZE
+registry.access.redhat.com/rhel7  latest      d19b7e812477  6 days ago  218 MB
+
+[student@workstation ~]$ podman run registry.access.redhat.com/rhel7 useradd foo
+
+[student@workstation ~]$ podman ps -a
+CONTAINER ID  IMAGE                                    COMMAND      CREATED         STATUS                        PORTS       NAMES
+be70eea7d19f  registry.access.redhat.com/rhel7:latest  useradd foo  11 seconds ago  Exited (0) 10 seconds ago                 happy_herschel
+
+[student@workstation ~]$ podman inspect be70eea7d19f | grep UpperDir
+                    "UpperDir": "/home/student/.local/share/containers/storage/overlay/2571e0f1edcf4b24bf9a54003f25ff84377ef027b1b034c757eb16c73af4139f/diff",
+
+[student@workstation ~]$ ls -ld /home/student/.local/share/containers/storage/overlay/2571e0f1edcf4b24bf9a54003f25ff84377ef027b1b034c757eb16c73af4139f/diff/home/foo
+drwx------. 2 100999 100999 62 Sep 21 10:45 /home/student/.local/share/containers/storage/overlay/2571e0f1edcf4b24bf9a54003f25ff84377ef027b1b034c757eb16c73af4139f/diff/home/foo
+----
+
+
+=== Understanding rootless networking
+
+*Root* = virtual ethernet device
+
+*Rootless* = Slirp, tap device
+
+Container networking normally uses CNI plugins to configure a bridge, but that would require root.  For rootless, podman will execute /usr/bin/slirp4netns` to setup networking.  
+This command will create a tap device that is injected inside the new networking namespace.
+
+Also, ping might not work depending on the RHEL version:
+
+[student@workstation ~]$ podman run -it ubi8 /bin/bash
+[root@840855c79201 /]# yum install iputils
+[root@ff226094dfd3 /]# ping google.com
+PING google.com (172.217.1.238) 56(84) bytes of data.
+^C
+--- google.com ping statistics ---
+57 packets transmitted, 0 received, 100% packet loss, time 57365ms
+
+Fixed per https://bugzilla.redhat.com/show_bug.cgi?id=2037807
+
+[student@workstation ~]$ rpm -q systemd
+systemd-239-58.el8.x86_64
+
+[student@workstation ~]$ rpm -q --changelog systemd
+* Mon Feb 07 2022 systemd maintenance team <systemd-maint@redhat.com> - 239-57
+- hash-funcs: introduce macro to create typesafe hash_ops (#2037807)
+- hash-func: add destructors for key and value (#2037807)
+- util: define free_func_t (#2037807)
+- hash-funcs: make basic hash_ops typesafe (#2037807)
+- test: add tests for destructors of hashmap or set (#2037807)
+- man: document the new sysctl.d/ - prefix (#2037807)
+- sysctl: if options are prefixed with "-" ignore write errors (#2037807)
+- sysctl: fix segfault (#2037807)
+
+
+https://github.com/containers/podman/blob/main/troubleshooting.md#5-rootless-containers-cannot-ping-hosts
+
+[student@workstation ~]$ sysctl -a | grep ping
+net.ipv4.ping_group_range = 0    2147483647
+
+
+[student@workstation ~]$ podman run -it ubi8 /bin/bash
+[root@34cb445d6819 /]# yum install iputils -y
+
+[root@34cb445d6819 /]# ping 8.8.8.8
+PING 8.8.8.8 (8.8.8.8) 56(84) bytes of data.
+64 bytes from 8.8.8.8: icmp_seq=1 ttl=255 time=4.21 ms
+64 bytes from 8.8.8.8: icmp_seq=2 ttl=255 time=1.70 ms
+
+[root@34cb445d6819 /]# exit

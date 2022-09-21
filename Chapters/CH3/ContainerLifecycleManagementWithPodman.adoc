@@ -375,7 +375,7 @@ To filter the output stream using `jq` *filters* can be applied based on the obj
 
 It's best to understand JSON a bit first.
 
-*JSON* = *J*ava*S*cript *O*bject *N*otation
+*JSON* = JavaScript Object Notation
 It is way to organize/structure data in a readable format.  This is primarly done through a list of "key" and "value" pairs in the format:
 
 [source,bash]
@@ -387,8 +387,8 @@ It is way to organize/structure data in a readable format.  This is primarly don
 
 The *value* can be any of the following types:
 
-* *String*: Several plain text characters which usually form a word
-* *Boolean*: true or false.
+* *String*: Several plain text characters which usually form a word enclsed in quotes " "
+* *Boolean*: Value will be either true or false.
 * *Number*: An integer
 * *Object*: An associative array of key/value pairs ... a "dictionary"   {    }
 * *Array*: An associative array of values ... a "list"   [     ]
@@ -416,48 +416,77 @@ Here are some examples from the `podman inspect` output:
       "Dead": false,
       "Pid": 1614,  <-------------------------------------------------------- NUMBER
       "ConmonPid": 1603,
-      "ExitCode": 0,
-      "Error": "",
-      "StartedAt": "2022-09-21T14:31:41.526823412-04:00",
-      "FinishedAt": "2022-09-21T14:30:06.842203892-04:00",
-      "Health": {
-        "Status": "",
-        "FailingStreak": 0,
-        "Log": null
-      }
+...SNIP...
 ----
 
+Understanding these different value types is critical to parsing JSON.
 
+With `jq` a filter can be defined which will parse the JSON input and return out the values for the keys identified in the filter.
+
+As you see in the example above, some keys are nested inside an OBJECT.  Others are part of an ARRAY. Take note of this while you study some examples:
 
 [source,bash]
 ----
 [student@workstation ~]$ podman inspect myhttpd | jq
-{
-  "OciVersion": "1.0.2-dev",
-  "Status": "running",
-  "Running": true,
-  "Paused": false,
-  "Restarting": false,
-  "OOMKilled": false,
-  "Dead": false,
-  "Pid": 1614,
-  "ConmonPid": 1603,
-  "ExitCode": 0,
-  "Error": "",
-  "StartedAt": "2022-09-21T14:31:41.526823412-04:00",
-  "FinishedAt": "2022-09-21T14:30:06.842203892-04:00",
-  "Health": {
-    "Status": "",
-    "FailingStreak": 0,
-    "Log": null
-  },
-  "CgroupPath": "/user.slice/user-1000.slice/user@1000.service",
-  "CheckpointedAt": "0001-01-01T00:00:00Z",
-  "RestoredAt": "0001-01-01T00:00:00Z"
-}
-[student@workstation ~]$ podman inspect myhttpd | jq ".[] .State .Pid"
-1614
+[
+  {
+    "Id": "2c3c93d8cfe4cceadc359d98377ca24e7c87576b390a7d505c316369b8720422",
+    "Created": "2022-09-21T13:58:47.711790266-04:00",
+    "Path": "container-entrypoint",
+    "Args": [
+      "/usr/bin/run-httpd"
+    ],
+    "State": {
+      "OciVersion": "1.0.2-dev",
+      "Status": "running",
+      "Running": true,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 1614,
+...SNIP...
 ----
+
+To parse this, notice that first line is *[* indicating that everything you see here is stored inside an ARRAY.
+To filter any key therefore we must include *.[]* in the filter so that all the keys in this ARRAY are included.
+
+[source,bash]
+----
+[student@workstation ~]$ podman inspect myhttpd | jq ".[]"
+{
+  "Id": "2c3c93d8cfe4cceadc359d98377ca24e7c87576b390a7d505c316369b8720422",
+  "Created": "2022-09-21T13:58:47.711790266-04:00",
+  "Path": "container-entrypoint",
+  "Args": [
+    "/usr/bin/run-httpd"
+  ],
+  "State": {
+    "OciVersion": "1.0.2-dev",
+    "Status": "running",
+    "Running": true,
+    "Paused": false,
+    "Restarting": false,
+    "OOMKilled": false,
+    "Dead": false,
+    "Pid": 1614,
+...SNIP...
+----
+
+The first three keys listed in this object have STRING values.  To return the value for one of them we can expand our filter:
+
+[source,bash]
+----
+[student@workstation ~]$ podman inspect myhttpd | jq ".[] .Id"
+"2c3c93d8cfe4cceadc359d98377ca24e7c87576b390a7d505c316369b8720422"
+[student@workstation ~]$ podman inspect myhttpd | jq ".[] .Created"
+"2022-09-21T13:58:47.711790266-04:00"
+[student@workstation ~]$ podman inspect myhttpd | jq ".[] .Path"
+"container-entrypoint"
+----
+
+For
+
 
 
 

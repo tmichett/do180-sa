@@ -376,7 +376,8 @@ To filter the output stream using `jq` *filters* can be applied based on the obj
 It's best to understand JSON a bit first.
 
 *JSON* = JavaScript Object Notation
-It is way to organize/structure data in a readable format.  This is primarly done through a list of "key" and "value" pairs in the format:
+
+It is way to organize/structure data in a readable format.  This is primarily done through a list of "key" and "value" pairs in the format:
 
 [source,bash]
 ----
@@ -387,7 +388,7 @@ It is way to organize/structure data in a readable format.  This is primarly don
 
 The *value* can be any of the following types:
 
-* *String*: Several plain text characters which usually form a word enclsed in quotes " "
+* *String*: Several plain text characters which usually form a word enclosed in quotes " "
 * *Boolean*: Value will be either true or false.
 * *Number*: An integer
 * *Object*: An associative array of key/value pairs ... a "dictionary"   {    }
@@ -485,10 +486,55 @@ The first three keys listed in this object have STRING values.  To return the va
 "container-entrypoint"
 ----
 
-For
+For an ARRAY we can identify the value by its _position_ or _index_ in the ARRAY.  The first item in the list has an _index_ of *0*.  It increments by 1 from there (ie 0, 1, 2, 3, etc)
 
+[source,bash]
+----
+[student@workstation ~]$ podman inspect myhttpd | jq ".[] .Args"
+[
+  "/usr/bin/run-httpd"
+]
+[student@workstation ~]$ podman inspect myhttpd | jq ".[] .Args[0]"
+"/usr/bin/run-httpd"
+[student@workstation ~]$ podman inspect myhttpd | jq ".[] .Args[1]"
 
+[student@workstation ~]$
+----
 
+It should make sense why there is a _null_ value returned when ".[] .Args[1]" is used.  There is only 1 value in the .Args[] ARRAY.  Remember the first index is 0.  The second is 1.
 
+To filter OBJECTS like `State {} above`, try these:
 
-[student@workstation ~]# man podman-inspect
+[source,bash]
+----
+[student@workstation ~]$ podman inspect myhttpd | jq ".[] .State"
+{
+  "OciVersion": "1.0.2-dev",
+  "Status": "running",
+  "Running": true,
+  "Paused": false,
+  "Restarting": false,
+  "OOMKilled": false,
+  "Dead": false,
+  "Pid": 1614,
+  "ConmonPid": 1603,
+  "ExitCode": 0,
+  "Error": "",
+  "StartedAt": "2022-09-21T14:31:41.526823412-04:00",
+  "FinishedAt": "2022-09-21T14:30:06.842203892-04:00",
+  "Health": {
+    "Status": "",
+    "FailingStreak": 0,
+    "Log": null
+  },
+  "CgroupPath": "/user.slice/user-1000.slice/user@1000.service",
+  "CheckpointedAt": "0001-01-01T00:00:00Z",
+  "RestoredAt": "0001-01-01T00:00:00Z"
+}
+[student@workstation ~]$ podman inspect myhttpd | jq ".[] .State .Pid"
+1614
+[student@workstation ~]$ podman inspect myhttpd | jq ".[] .State .Running"
+true
+----
+
+With `jq` there is much more possible.  Consider `man jq` and other `jq` tutorials for more advanced JSON parsing.

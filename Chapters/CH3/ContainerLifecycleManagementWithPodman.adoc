@@ -129,7 +129,7 @@ SEE the sourcecode: https://github.com/containers/podman/blob/main/vendor/github
                 // Muhammad ibn Jābir al-Ḥarrānī al-Battānī was a founding father of astronomy. https://en.wikipedia.org/wiki/Mu%E1%B8%A5ammad_ibn_J%C4%81bir_al-%E1%B8%A4arr%C4%81n%C4%AB_al-Batt%C4%81n%C4%AB
                 "albattani",
 
-                // Frances E. Allen, became the first female IBM Fellow in 1989. In 2006, she became the first female recipient of the ACM's Turing Award. https://en.wikipedia.org/wiki/Frances_E._Allen
+                // Frances E. Allen, became the first female IBM Fellow in 1989. In 2006, she became the first female recipient of the ACMs Turing Award. https://en.wikipedia.org/wiki/Frances_E._Allen
                 "allen",
 
 ...SNIP...
@@ -295,3 +295,171 @@ CONTAINER ID  IMAGE                                                   COMMAND   
 ----
 
 SEE also https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/8/html-single/building_running_and_managing_containers/index#proc_enabling-systemd-services_assembly_porting-containers-to-systemd-using-podman
+
+
+=== How to extract metadata from `podman inspect` ?
+
+Containers and images have a large number of properties defined as part of the OCI specification.  These details are typically not displayed when running commands like `podman ps`.  `podman inspect` can be used to dump all of the properties or keys (metadata) of a container.
+
+[source,bash]
+----
+[student@workstation ~]$ podman inspect --help
+Display the configuration of object denoted by ID
+
+Description:
+  Displays the low-level information on an object identified by name or ID.
+  For more inspection options, see:
+
+  [student@workstation ~]$ podman ps
+  CONTAINER ID  IMAGE                                                   COMMAND               CREATED         STATUS             PORTS       NAMES
+  2c3c93d8cfe4  registry.access.redhat.com/rhscl/httpd-24-rhel7:latest  /usr/bin/run-http...  47 minutes ago  Up 14 minutes ago              myhttpd
+  [student@workstation ~]$ podman inspect myhttpd | head
+  [
+       {
+            "Id": "2c3c93d8cfe4cceadc359d98377ca24e7c87576b390a7d505c316369b8720422",
+            "Created": "2022-09-21T13:58:47.711790266-04:00",
+            "Path": "container-entrypoint",
+            "Args": [
+                 "/usr/bin/run-httpd"
+            ]
+
+----
+
+`podman inspect` will return a JSON object with all of the `"key": value` pairs included in a container\'s metadata.
+
+There are different techniques for parsing this information.  Some methods use straightforward shell-based approaches piping this data into tools like `grep`, `awk`, and/or `sed`
+
+Suppose you wanted to identify the global PID for the containerized process in the `myhttpd` container.  Some combination of these tools could be used like the following:
+
+[source,bash]
+----
+[student@workstation ~]$ podman inspect myhttpd | grep -i pid
+               "Pid": 1614,
+               "ConmonPid": 1603,
+          "ConmonPidFile": "/run/user/1000/containers/overlay-containers/2c3c93d8cfe4cceadc359d98377ca24e7c87576b390a7d505c316369b8720422/userdata/conmon.pid",
+          "PidFile": "/run/user/1000/containers/overlay-containers/2c3c93d8cfe4cceadc359d98377ca24e7c87576b390a7d505c316369b8720422/userdata/pidfile",
+               "PidMode": "private",
+               "PidsLimit": 0,
+[student@workstation ~]$ podman inspect myhttpd | grep -i \"Pid\":
+               "Pid": 1614,
+[student@workstation ~]$ podman inspect myhttpd | grep -i \"Pid\": | awk -F: '{print $1}'
+               "Pid"
+[student@workstation ~]$ podman inspect myhttpd | grep -i \"Pid\": | awk -F: '{print $2}'
+ 1614,
+[student@workstation ~]$ podman inspect myhttpd | grep -i \"Pid\": | awk -F: '{print $2}' | sed 's/,//'
+ 1614
+ [student@workstation ~]$ ps -ef | grep 1614
+ 101000      1614    1603  0 14:31 ?        00:00:00 httpd -D FOREGROUND
+ 101000      1724    1614  0 14:31 ?        00:00:00 /usr/bin/cat
+ 101000      1725    1614  0 14:31 ?        00:00:00 /usr/bin/cat
+ 101000      1726    1614  0 14:31 ?        00:00:00 /usr/bin/cat
+ 101000      1727    1614  0 14:31 ?        00:00:00 /usr/bin/cat
+ 101000      1728    1614  0 14:31 ?        00:00:00 httpd -D FOREGROUND
+ 101000      1734    1614  0 14:31 ?        00:00:00 httpd -D FOREGROUND
+ 101000      1736    1614  0 14:31 ?        00:00:00 httpd -D FOREGROUND
+ 101000      1752    1614  0 14:31 ?        00:00:00 httpd -D FOREGROUND
+ 101000      1753    1614  0 14:31 ?        00:00:00 httpd -D FOREGROUND
+ student     2355    2023  0 14:54 pts/0    00:00:00 grep --color=auto 1614
+----
+
+Because the default output from `podman inspect` is a JSON object, tools that are built to parse JSON might be less problematic.  Consider the `jq` utility:
+
+[source,bash]
+----
+[student@workstation ~]$ podman inspect myhttpd | jq
+(lots of output)
+[student@workstation ~]$ podman inspect myhttpd | jq | head
+----
+
+To filter the output stream using `jq` *filters* can be applied based on the object and the values you are interested in.
+
+It's best to understand JSON a bit first.
+
+*JSON* = *J*ava*S*cript *O*bject *N*otation
+It is way to organize/structure data in a readable format.  This is primarly done through a list of "key" and "value" pairs in the format:
+
+[source,bash]
+----
+"Key1": "value1",
+"Key2": "value2",
+...etc...
+----
+
+The *value* can be any of the following types:
+
+* *String*: Several plain text characters which usually form a word
+* *Boolean*: true or false.
+* *Number*: An integer
+* *Object*: An associative array of key/value pairs ... a "dictionary"   {    }
+* *Array*: An associative array of values ... a "list"   [     ]
+
+Here are some examples from the `podman inspect` output:
+
+[source,bash]
+----
+[student@workstation ~]$ podman inspect myhttpd | jq | less
+[
+  {
+    "Id": "2c3c93d8cfe4cceadc359d98377ca24e7c87576b390a7d505c316369b8720422",
+    "Created": "2022-09-21T13:58:47.711790266-04:00", <---------------------  STRING
+    "Path": "container-entrypoint",
+    "Args": [       <-------------------------------------------------------  ARRAY
+      "/usr/bin/run-httpd"
+    ],
+    "State": {         <----------------------------------------------------- OBJECT
+      "OciVersion": "1.0.2-dev",
+      "Status": "running",
+      "Running": true,    <-------------------------------------------------- BOOLEAN
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 1614,  <-------------------------------------------------------- NUMBER
+      "ConmonPid": 1603,
+      "ExitCode": 0,
+      "Error": "",
+      "StartedAt": "2022-09-21T14:31:41.526823412-04:00",
+      "FinishedAt": "2022-09-21T14:30:06.842203892-04:00",
+      "Health": {
+        "Status": "",
+        "FailingStreak": 0,
+        "Log": null
+      }
+----
+
+
+
+[source,bash]
+----
+[student@workstation ~]$ podman inspect myhttpd | jq
+{
+  "OciVersion": "1.0.2-dev",
+  "Status": "running",
+  "Running": true,
+  "Paused": false,
+  "Restarting": false,
+  "OOMKilled": false,
+  "Dead": false,
+  "Pid": 1614,
+  "ConmonPid": 1603,
+  "ExitCode": 0,
+  "Error": "",
+  "StartedAt": "2022-09-21T14:31:41.526823412-04:00",
+  "FinishedAt": "2022-09-21T14:30:06.842203892-04:00",
+  "Health": {
+    "Status": "",
+    "FailingStreak": 0,
+    "Log": null
+  },
+  "CgroupPath": "/user.slice/user-1000.slice/user@1000.service",
+  "CheckpointedAt": "0001-01-01T00:00:00Z",
+  "RestoredAt": "0001-01-01T00:00:00Z"
+}
+[student@workstation ~]$ podman inspect myhttpd | jq ".[] .State .Pid"
+1614
+----
+
+
+
+
+[student@workstation ~]# man podman-inspect

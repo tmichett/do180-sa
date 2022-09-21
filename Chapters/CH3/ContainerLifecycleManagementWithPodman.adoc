@@ -420,7 +420,10 @@ Here are some examples from the `podman inspect` output:
 ...SNIP...
 ----
 
+[NOTE]
+======
 Understanding these different value types is critical to parsing JSON.
+======
 
 With `jq` a filter can be defined which will parse the JSON input and return out the values for the keys identified in the filter.
 
@@ -501,9 +504,9 @@ For an ARRAY we can identify the value by its _position_ or _index_ in the ARRAY
 [student@workstation ~]$
 ----
 
-It should make sense why there is a _null_ value returned when ".[] .Args[1]" is used.  There is only 1 value in the .Args[] ARRAY.  Remember the first index is 0.  The second is 1.
+It should make sense why there is a _null_ value returned when `.[] .Args[1]` is used.  There is only 1 value in the `.Args[]` ARRAY.  Remember the first index is 0.  The second is 1.
 
-To filter OBJECTS like `State {} above`, try these:
+To filter OBJECTS like `State {}` above, try these:
 
 [source,bash]
 ----
@@ -542,9 +545,9 @@ With `jq` there is much more possible.  Consider `man jq` and other `jq` tutoria
 
 === How to use `podman inspect --format` with a Go template?
 
-A *Go template* is a pattern used in golang that can be used to generate specific output.
+A *Go template* is a pattern used in golang that can be useful for filtering input text or generating specific output.
 
-The *Go template* is an expression passed to `podman inspect --format`.  From https://pkg.go.dev/text/template
+The *Go template* is an expression passed to `podman inspect <container> --format`.  From https://pkg.go.dev/text/template
 
 [quote]
 ____
@@ -555,7 +558,7 @@ ____
 
 Just like with `jq`, it is critical to understand the different types of values in the input data object: STRING, BOOLEAN, NUMBER, OBJECT, ARRAY
 
-Here are some examples to try:
+Here are some patterns that will output a few different string values:
 
 [source,bash]
 ----
@@ -569,7 +572,7 @@ Here are some examples to try:
 container-entrypoint
 ----
 
-For an values nested inside of an OBJECT:
+For values nested inside of an OBJECT:
 
 [source,bash]
 ----
@@ -587,8 +590,10 @@ For ARRAYs use the keyword *index* like:
 ----
 [student@workstation ~]$ podman inspect myhttpd --format '{{.Args}}'
 [/usr/bin/run-httpd]
+
 [student@workstation ~]$ podman inspect myhttpd --format '{{index .Args 0}}'
 /usr/bin/run-httpd
+
 [student@workstation ~]$ podman inspect myhttpd --format '{{index .Args 1}}'
 ERRO[0000] Printing inspect output: template: all inspect:1:13: executing "all inspect" at <index .Args 1>: error calling index: reflect: slice index out of range
 ----
@@ -600,16 +605,22 @@ More complex processing of ARRAYs can occur using the *range* reserved word.  Co
 [student@workstation ~]$ podman inspect myhttpd --format '{{.BoundingCaps}}'
 [CAP_CHOWN CAP_DAC_OVERRIDE CAP_FOWNER CAP_FSETID CAP_KILL CAP_NET_BIND_SERVICE CAP_NET_RAW CAP_SETFCAP CAP_SETGID CAP_SETPCAP CAP_SETUID CAP_SYS_CHROOT]
 [student@workstation ~]$
+
 [student@workstation ~]$ podman inspect myhttpd --format '{{index .BoundingCaps 0}}'
 CAP_CHOWN
+
 [student@workstation ~]$ podman inspect myhttpd --format '{{index .BoundingCaps 1}}'
 CAP_DAC_OVERRIDE
+
 [student@workstation ~]$ podman inspect myhttpd --format '{{index .BoundingCaps 2}}'
 CAP_FOWNER
+
 [student@workstation ~]$ podman inspect myhttpd --format '{{range .BoundingCaps}}cap: {{end}}'
 cap: cap: cap: cap: cap: cap: cap: cap: cap: cap: cap: cap:
+
 [student@workstation ~]$ podman inspect myhttpd --format '{{range .BoundingCaps}}cap:{{.}} {{end}}'
 cap:CAP_CHOWN cap:CAP_DAC_OVERRIDE cap:CAP_FOWNER cap:CAP_FSETID cap:CAP_KILL cap:CAP_NET_BIND_SERVICE cap:CAP_NET_RAW cap:CAP_SETFCAP cap:CAP_SETGID cap:CAP_SETPCAP cap:CAP_SETUID cap:CAP_SYS_CHROOT
+
 [student@workstation ~]$ podman inspect myhttpd --format '{{range .BoundingCaps}}cap:{{.}}\n{{end}}'
 cap:CAP_CHOWN
 cap:CAP_DAC_OVERRIDE
@@ -661,3 +672,127 @@ myhttpd            Up 2 hours ago          registry.access.redhat.com/rhscl/http
 ======
 Parsing metadata like these examples will also apply to later Chapters that involve Red Hat Openshift Container Platform.  SEE https://www.openshift.com/blog/customizing-oc-output-with-go-templates for ideas on how to apply these parsing techniques to `oc`
 ======
+
+
+=== What does `podman pause` do to a running container ?
+
+`podman pause` uses the cgroup "freezer" to freeze (halt) a task without stopping it or without the task knowing.
+
+[NOTE]
+======
+This is NOT supported with rootless due to a limit in the freezer cgroup v1.
+======
+
+The container  and  its processes  are  paused  while  the image is committed. This minimizes the likelihood of data corruption when creating the new image.
+(man podman-commit)
+
+
+From https://www.kernel.org/doc/Documentation/cgroup-v1/freezer-subsystem.txt
+
+[quote]
+____
+The cgroup freezer will also be useful for checkpointing running groups of tasks.  The cgroup freezer is hierarchical.
+Freezing a cgroup freezes all tasks belonging to the cgroup and all its descendant cgroups
+____
+
+Try the following as the root user:
+
+[source,bash]
+----
+[student@workstation ~]$ sudo su -
+[root@workstation ~]# podman run -d --name mywebapp -p 8888:8080 registry.access.redhat.com/rhscl/httpd-24-rhel7
+3bc5ea1dbfc1694bd8a1cca6e57c54638e2b1c1f818c966b047abc95fc9d443d
+
+[root@workstation ~]# curl -I http://localhost:8888
+HTTP/1.1 403 Forbidden
+Date: Wed, 21 Sep 2022 20:33:09 GMT
+Server: Apache/2.4.34 (Red Hat) OpenSSL/1.0.2k-fips
+Last-Modified: Wed, 23 Mar 2022 14:51:57 GMT
+ETag: "f91-5dae3defb5d40"
+Accept-Ranges: bytes
+Content-Length: 3985
+Content-Type: text/html; charset=UTF-8
+----
+
+Now pause the *mywebapp* container with `podman pause`
+
+[source,bash]
+----
+[root@workstation ~]# podman pause mywebapp
+3bc5ea1dbfc1694bd8a1cca6e57c54638e2b1c1f818c966b047abc95fc9d443d
+[root@workstation ~]# cat /sys/fs/cgroup/freezer/machine.slice/libpod-3bc5ea*/freezer.state
+FROZEN
+
+[root@workstation ~]# curl -I http://localhost:8888
+(hangs)
+^C
+----
+
+This container is not responding as we would expect from being "paused".  Additionally, the state is marked as *Paused*
+
+[source,bash]
+----
+[root@workstation ~]# podman ps -a
+CONTAINER ID  IMAGE                                                   COMMAND               CREATED        STATUS      PORTS                   NAMES
+3bc5ea1dbfc1  registry.access.redhat.com/rhscl/httpd-24-rhel7:latest  /usr/bin/run-http...  3 minutes ago  Paused      0.0.0.0:8888->8080/tcp  mywebapp
+----
+
+This process will not consume CPU time and will be in "D" state:
+
+[source,bash]
+----
+[root@workstation ~]# podman inspect 3bc5ea1dbfc1 --format '{{.State.Pid}}'
+4625
+
+[root@workstation ~]# ps -ef | grep 4625
+devops      4625    4614  0 16:32 ?        00:00:00 httpd -D FOREGROUND
+devops      4685    4625  0 16:32 ?        00:00:00 /usr/bin/cat
+devops      4686    4625  0 16:32 ?        00:00:00 /usr/bin/cat
+devops      4687    4625  0 16:32 ?        00:00:00 /usr/bin/cat
+devops      4688    4625  0 16:32 ?        00:00:00 /usr/bin/cat
+devops      4689    4625  0 16:32 ?        00:00:00 httpd -D FOREGROUND
+devops      4695    4625  0 16:32 ?        00:00:00 httpd -D FOREGROUND
+devops      4703    4625  0 16:32 ?        00:00:00 httpd -D FOREGROUND
+devops      4716    4625  0 16:32 ?        00:00:00 httpd -D FOREGROUND
+devops      4719    4625  0 16:32 ?        00:00:00 httpd -D FOREGROUND
+root        4910    3843  0 16:37 pts/0    00:00:00 grep --color=auto 4625
+
+[root@workstation ~]# ps -aux | grep 4625
+devops      4625  0.0  0.2 373552 17420 ?        Ds   16:32   0:00 httpd -D FOREGROUND
+
+----
+
+Now run `podman unpause`
+
+[source,bash]
+----
+
+[root@workstation ~]# podman unpause mywebapp
+3bc5ea1dbfc1694bd8a1cca6e57c54638e2b1c1f818c966b047abc95fc9d443d
+----
+
+It will be available and responsive again:
+
+[source,bash]
+----
+[root@workstation ~]# curl -I http://localhost:8888
+HTTP/1.1 403 Forbidden
+Date: Wed, 21 Sep 2022 20:40:33 GMT
+Server: Apache/2.4.34 (Red Hat) OpenSSL/1.0.2k-fips
+Last-Modified: Wed, 23 Mar 2022 14:51:57 GMT
+ETag: "f91-5dae3defb5d40"
+Accept-Ranges: bytes
+Content-Length: 3985
+Content-Type: text/html; charset=UTF-8
+
+[root@workstation ~]# cat /sys/fs/cgroup/freezer/machine.slice/libpod-3bc5ea*/freezer.state
+THAWED
+
+[root@workstation ~]# ps -aux | grep 4625
+devops      4625  0.0  0.2 373552 17420 ?        Ss   16:32   0:00 httpd -D FOREGROUND
+
+[root@workstation ~]# exit
+logout
+[student@workstation ~]$
+
+----

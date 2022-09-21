@@ -24,4 +24,4 @@ endif::[]
 
 Check out ubi on https://catalog.redhat.com/software/containers/explore/
 
-:image::ubi8.png[title="ubi8 container image"]
+image::ubi8.png[title="ubi8 container image"]

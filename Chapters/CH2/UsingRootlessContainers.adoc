@@ -110,7 +110,7 @@ The child uid -> parent uid mapping for the student@workstation user can thus be
 
 [cols="4a,4a",options=header]
 |===
-|uid (child)|uid (parent)|
+|uid (child)|uid (parent)
 |0|1000
 |1|100000
 |2|100001

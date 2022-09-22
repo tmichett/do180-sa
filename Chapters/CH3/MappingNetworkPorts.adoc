@@ -108,3 +108,48 @@ Since we are using host’s network, the host’s firewall will need to be modif
 100  3985  100  3985    0     0   353k      0 --:--:-- --:--:-- --:--:--  353k
         <title>Test Page for the Apache HTTP Server on Red Hat Enterprise Linux</title>
 ----
+
+
+=== Is Podman 4.0 is moving away from CNI ?
+
+From https://www.redhat.com/sysadmin/podman-new-network-stack
+
+[quote]
+____
+Of the new features in Podman v4.0, one of the most important is a new network stack, written from scratch in Rust to support Podman. The new stack is composed of two tools, the Netavark network setup tool and the Aardvark DNS server.
+
+Existing containers in nondefault networks cannot be converted to Netavark, and Netavark doesn't support advanced CNI plugins (for example, connecting to Kubernetes networks created using Flannel). To ensure a smooth transition, we will continue to support CNI with Podman, and existing Podman installations will continue to use CNI for networking.
+New installations can opt to use CNI by explicitly specifying it via the containers.conf configuration file, using the network_backend field. CNI and Netavark cannot be used simultaneously in order to avoid conflicts in the configurations the two create.
+____
+
+
+What is used currently in DO180 classroom ? CNI see:
+
+[source,bash]
+----
+[root@workstation ~]# cat /usr/share/containers/containers.conf
+[network]
+
+# Network backend determines what network driver will be used to set up and tear down container networks.
+# Valid values are "cni" and "netavark".
+# The default value is empty which means that it will automatically choose CNI or netavark. If there are
+# already containers/images or CNI networks preset it will choose CNI.
+#
+# Before changing this value all containers must be stopped otherwise it is likely that
+# iptables rules and network interfaces might leak on the host. A reboot will fix this.
+#
+#network_backend = ""
+network_backend = "cni"
+----
+
+=== Are there python modules that can work directly with libpod ?
+
+No. Not directly, but there is a RESTful API available with podman started by running `podman system service tcp:localhost:8080 --log-level=debug --time=0` like:
+
+This could be adapted to python code using the requests module ie https://www.redhat.com/sysadmin/podman-python-bash
+
+There are some efforts to use this api in python here: https://github.com/containers/podman-py
+
+A new API is coming with version 2.0 of podman (we are using 1.6.4 in the training env): https://www.redhat.com/sysadmin/podmans-new-rest-api
+
+https://docs.podman.io/en/latest/_static/api.html 

@@ -71,7 +71,7 @@ Login Succeeded!
 }
 ----
 
-It may seem like the *auth* string "some00000random1111string" is encrypted and safe from malicious attack.  But, in fact, this is string is _encoded_ not _encrypted_
+It may seem like the *auth* string "some00000random1111string" is encrypted and safe from malicious attack.  But, in fact, this string is _encoded_ not encrypted.
 
 Meaning, it is easy to take an encoded string and decode it back to the original string.  Try it using your auth string (the string given in the code snip is an example and not valid):
 
@@ -109,7 +109,7 @@ To test, navigate to the newly created Service Account.  Click the tab *Docker L
 
 image::docker-login.png[]
 
-Copy the login command and paste it into an editor like `gedit`.  You will need to modify the command so that `podman` is used and not `docker`.
+Copy the login command and paste it into an editor like `gedit`.  You will need to modify the command so that `podman login` is used and not `docker login`.
 
 With the modified `podman login` run it on the workstation machine:
 
@@ -136,7 +136,7 @@ Normal username and password authentication with registry.redhat.io will result 
 }
 ----
 
-When podman runs commands (like pull) podman will use these credentials to obtain a token that is short-lived (300s).  For example,
+When running `podman` commands `podman pull`, these credentials are used to obtain a token that is short-lived (300s).  For example,
 
 [source,bash]
 ----
@@ -148,6 +148,6 @@ Enter host password for user 'myusername':
 
 You can try the example above by replacing `myusername` with the login you use to the customer portal.
 
-As given in this output, a successful login using `podman login` will result in a token that expires after *300* seconds.  After which time, a new request will need to be made for a new token.
+As given in this output, this short-lived token will expire after *300* seconds.  After which time, a new request will need to be made for a new token using the cached credentials in `${XDG_RUNTIME_DIR}/containers/auth.json`
 
 SEE https://access.redhat.com/articles/3560571 for more help using curl to troubleshoot authentication issues.

@@ -19,10 +19,9 @@ ifdef::env-github[]
 endif::[]
 :imagesdir: ./images/
 
-== Chapter 4: Managing Container Images
+=== Where can I find the actual OCI specification ?
 
-:sectnums:
+OCI spec: https://opencontainers.org/
 
-include::Chapters/CH4/ConfiguringRegistriesInPodman.adoc[]
-
-
+Runtime-spec https://github.com/opencontainers/runtime-spec 
+Image-spec https://github.com/opencontainers/image-spec

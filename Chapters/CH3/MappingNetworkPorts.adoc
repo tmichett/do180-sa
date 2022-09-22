@@ -110,7 +110,7 @@ Since we are using host’s network, the host’s firewall will need to be modif
 ----
 
 
-=== Is Podman 4.0 is moving away from CNI ?
+=== Is Podman 4.0 moving away from CNI ?
 
 From https://www.redhat.com/sysadmin/podman-new-network-stack
 
@@ -152,4 +152,4 @@ There are some efforts to use this api in python here: https://github.com/contai
 
 A new API is coming with version 2.0 of podman (we are using 1.6.4 in the training env): https://www.redhat.com/sysadmin/podmans-new-rest-api
 
-https://docs.podman.io/en/latest/_static/api.html 
+https://docs.podman.io/en/latest/_static/api.html

@@ -20,11 +20,16 @@ endif::[]
 :imagesdir: ./images/
 
 
-=== What is used to configure networking for containers run as the root user?
+=== What is used to configure networking for containers run as root?
 
 
-the Container Networking Interface (CNI) open source project.  https://github.com/containernetworking/cni
-The CNI project aims to standardize the network interface for containers in cloud native environments, such as Kubernetes and Red Hat OpenShift Container Platform
+[source,bash]
+----
+[student@workstation ~]$ podman info | grep networkBackend
+  networkBackend: cni
+----
+
+The Container Networking Interface (CNI)  https://github.com/containernetworking/cni aims to standardize the network interface for containers in cloud native environments, such as Kubernetes and Red Hat OpenShift Container Platform
 consists of a specification and libraries for writing plugins to configure network interfaces in Linux containers
 
 What other plugins are available ?
@@ -37,7 +42,28 @@ Ovs-cni plugin: https://github.com/kubevirt/ovs-cni/blob/master/docs/cni-plugin.
 
 [source,bash]
 ----
-[student@workstation ~]$ cat /etc/cni/net.d/87-podman-bridge.conflist
+[student@workstation ~]$ podman network inspect podman
+[
+     {
+          "name": "podman",
+          "id": "2f259bab93aaaaa2542ba43ef33eb990d0999ee1b9924b557b7be53c0b7a1bb9",
+          "driver": "bridge",
+          "network_interface": "cni-podman0",
+          "created": "2022-09-22T12:50:38.202589559-04:00",
+          "subnets": [
+               {
+                    "subnet": "10.88.0.0/16",
+                    "gateway": "10.88.0.1"
+               }
+          ],
+          "ipv6_enabled": false,
+          "internal": false,
+          "dns_enabled": false,
+          "ipam_options": {
+               "driver": "host-local"
+          }
+     }
+]
 
 [student@workstation ~]$ sudo su -
 [root@workstation ~]# bridge link show

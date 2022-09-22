@@ -332,5 +332,4 @@ exit
 [student@workstation ~]$ ls /home/student/.local/share/containers/storage/volumes/myvol/_data -lZ
 total 0
 -rw-r--r--. 1 101000 student system_u:object_r:container_file_t:s0 0 Sep 22 11:32 index.html
-
 ----

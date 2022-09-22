@@ -1,0 +1,110 @@
+:pygments-style: tango
+:source-highlighter: pygments
+:toc:
+:toclevels: 7
+:sectnums:
+:sectnumlevels: 6
+:numbered:
+:chapter-label:
+:icons: font
+ifndef::env-github[:icons: font]
+ifdef::env-github[]
+:status:
+:outfilesuffix: .adoc
+:caution-caption: :fire:
+:important-caption: :exclamation:
+:note-caption: :paperclip:
+:tip-caption: :bulb:
+:warning-caption: :warning:
+endif::[]
+:imagesdir: ./images/
+
+=== How can we connect to a containerized application using the host’s network ?
+
+Ports !
+
+[source,bash]
+----
+[student@workstation ~]# podman run -d -p 8888:8080 ubi8 sleep 5000
+845072a99bbdca4d0581e0a75326fa72d44c75d1e4f52f63420c1dfc810d1110
+
+[student@workstation ~]# netstat -tunap | grep 8888
+tcp        0      0 0.0.0.0:8888            0.0.0.0:*               LISTEN      3439/slirp4netns
+
+[student@workstation ~]$ ps -ef | grep slirp
+student     3439       1  0 06:54 pts/1    00:00:00 /usr/bin/slirp4netns --api-socket /run/user/1000/libpod/tmp/930f971c0e8c14bdba1605f09f7fd3ea14c9aa0d1384f3a7a348e4181fa126f1.net --disable-host-loopback --mtu 65520 --enable-sandbox -c -e 3 -r 4 --netns-type=path /run/user/1000/netns/cni-200e5dfd-dabc-4c02-b2a5-392a7dc4ce87 tap0
+----
+
+Open an interactive shell inside the `sleep 5000` container to inspect the networking.
+
+[source,bash]
+----
+
+[student@workstation ~]$ podman exec -it 93  /bin/bash
+
+[root@930f971c0e8c /]# yum install iproute -y
+
+[root@930f971c0e8c /]# ip addr show
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host
+       valid_lft forever preferred_lft forever
+2: tap0: <BROADCAST,UP,LOWER_UP> mtu 65520 qdisc fq_codel state UNKNOWN group default qlen 1000
+    link/ether 36:c3:4a:58:15:04 brd ff:ff:ff:ff:ff:ff
+    inet 10.0.2.100/24 brd 10.0.2.255 scope global tap0
+       valid_lft forever preferred_lft forever
+    inet6 fe80::34c3:4aff:fe58:1504/64 scope link
+       valid_lft forever preferred_lft forever
+----
+
+This network exists within a separate networking namespace from the global one.  Consider findmnt.  Look for `nsfs` (namespace filesystem):
+
+[source,bash]
+----
+[student@workstation ~]$ podman unshare findmnt | grep nsfs
+│     └─/run/user/1000/netns/cni-e74fcbb7-b359-3084-eab8-599b903d2647                                                                            nsfs[net:[4026532260]]                                           nsfs                rw,seclabel
+[student@workstation ~]$ findmnt | grep nsfs
+[student@workstation ~]$
+----
+
+Nsfs is a pseudo-filesystem.  See the commit in the kernel here:
+
+https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=e149ed2b805fefdccf7ccdfc19eca22fdd4514ac
+
+
+NOTE: If run as root, conmon is the listening process
+
+[source,bash]
+----
+
+[root@workstation ~]# podman run -d -p 8081:8080 rhscl/httpd-24-rhel7
+eef01bf84d01da35e289ec27b8dd4ea4aec188114c18daee567fef3d5f22a51d
+[root@workstation ~]# netstat -tunap | grep 8081
+tcp        0      0 0.0.0.0:8081            0.0.0.0:*               LISTEN      8956/conmon
+
+
+[student@workstation ~]$ curl localhost:8081 | grep title
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100  3985  100  3985    0     0  1945k      0 --:--:-- --:--:-- --:--:-- 1945k
+        <title>Test Page for the Apache HTTP Server on Red Hat Enterprise Linux</title>
+
+----
+
+It is possible to access this application from another machine in the DO180 lab environment.
+Since we are using host’s network, the host’s firewall will need to be modified:
+
+[source,bash]
+----
+[student@workstation ~]# sudo firewall-cmd --add-port=8081/tcp
+
+[student@workstation ~]$ ssh bastion
+
+[student@bastion ~]$ curl workstation:8081 | grep title
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100  3985  100  3985    0     0   353k      0 --:--:-- --:--:-- --:--:--  353k
+        <title>Test Page for the Apache HTTP Server on Red Hat Enterprise Linux</title>
+----

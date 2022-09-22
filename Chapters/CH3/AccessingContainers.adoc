@@ -1,0 +1,189 @@
+:pygments-style: tango
+:source-highlighter: pygments
+:toc:
+:toclevels: 7
+:sectnums:
+:sectnumlevels: 6
+:numbered:
+:chapter-label:
+:icons: font
+ifndef::env-github[:icons: font]
+ifdef::env-github[]
+:status:
+:outfilesuffix: .adoc
+:caution-caption: :fire:
+:important-caption: :exclamation:
+:note-caption: :paperclip:
+:tip-caption: :bulb:
+:warning-caption: :warning:
+endif::[]
+:imagesdir: ./images/
+
+
+=== What is used to configure networking for containers run as the root user?
+
+
+the Container Networking Interface (CNI) open source project.  https://github.com/containernetworking/cni
+The CNI project aims to standardize the network interface for containers in cloud native environments, such as Kubernetes and Red Hat OpenShift Container Platform
+consists of a specification and libraries for writing plugins to configure network interfaces in Linux containers
+
+What other plugins are available ?
+https://github.com/containernetworking/plugins
+
+Some CNI network plugins, maintained by the containernetworking team.  There are others maintained by different teams.  Consider
+
+There is an ovs cni plugin among others:
+Ovs-cni plugin: https://github.com/kubevirt/ovs-cni/blob/master/docs/cni-plugin.md
+
+[source,bash]
+----
+[student@workstation ~]$ cat /etc/cni/net.d/87-podman-bridge.conflist
+
+[student@workstation ~]$ sudo su -
+[root@workstation ~]# bridge link show
+4: virbr0-nic: <BROADCAST,MULTICAST> mtu 1500 master virbr0 state disabled priority 32 cost 100
+
+[root@workstation ~]# ip addr show
+(note missing interface for cni-podman0)
+----
+
+
+Now, let’s run a container and check the networking on the host again:
+
+[source,bash]
+----
+[root@workstation ~]# podman run -d rhscl/httpd-24-rhel7
+44d328fb7ca9f951e5e165a4eff4860789c446fc35c249844259b9f3320e67fa
+
+[root@workstation ~]# bridge link show
+4: virbr0-nic: <BROADCAST,MULTICAST> mtu 1500 master virbr0 state disabled priority 32 cost 100
+6: vethf643eab8@virbr0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 master cni-podman0 state forwarding priority 32 cost 2
+
+
+[root@workstation ~]# ip addr show cni-podman0
+5: cni-podman0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default qlen 1000
+    link/ether 32:f4:04:21:cd:64 brd ff:ff:ff:ff:ff:ff
+    inet 10.88.0.1/16 brd 10.88.255.255 scope global cni-podman0
+       valid_lft forever preferred_lft forever
+    inet6 fe80::30f4:4ff:fe21:cd64/64 scope link
+       valid_lft forever preferred_lft forever
+----
+
+
+=== How does ip allocation work with cni ipam “host-local” ?
+
+[NOTE]
+======
+Running containers rootless will rely on `/usr/bin/slirp4netns` instead of the CNI bridge `cni-podman0` used by the root user.
+======
+
+First, become *root* and verify the network settings.
+
+[source,bash]
+----
+[student@workstation ~]$ sudo su -
+Last login: Thu Sep 22 10:23:11 EDT 2022 on pts/0
+
+[root@workstation podman]# podman network ls
+NETWORK ID    NAME        DRIVER
+2f259bab93aa  podman      bridge
+
+[root@workstation podman]# podman network inspect podman
+[
+     {
+          "name": "podman",
+          "id": "2f259bab93aaaaa2542ba43ef33eb990d0999ee1b9924b557b7be53c0b7a1bb9",
+          "driver": "bridge",
+          "network_interface": "cni-podman0",
+          "created": "2022-09-22T11:46:57.484659338-04:00",
+          "subnets": [
+               {
+                    "subnet": "10.88.0.0/16",
+                    "gateway": "10.88.0.1"
+               }
+          ],
+          "ipv6_enabled": false,
+          "internal": false,
+          "dns_enabled": false,
+          "ipam_options": {
+               "driver": "host-local"
+          }
+     }
+]
+----
+
+*IPAM* = IP Address Management
+
+Notice the configuration above indicates that the ipam_options will use the "host-local" driver.  The directory used for this driver type is `/var/lib/cni/networks/podman`
+
+The IP address assigned to a particular container is listed as a flat text file while its contents matches its networking namespace (or containerID).
+
+The last_reserved_ip.0 is a "helper" file indicating the last assigned IP address.
+
+Consider this example:
+
+[source,bash]
+----
+[root@workstation ~]# podman run -d --name mynetworktest rhscl/httpd-24-rhel7
+11fd588f624b29b70c7fe2a97ef08f7934ca72623e3aed8d6fea7936be125917
+
+[root@workstation ~]# cd /var/lib/cni/networks/podman/
+
+[root@workstation podman]# ls
+10.88.0.2  last_reserved_ip.0  lock
+
+[root@workstation podman]# cat 10.88.0.2
+11fd588f624b29b70c7fe2a97ef08f7934ca72623e3aed8d6fea7936be125917
+----
+
+Check to see that the string in this file matches the Container ID for the `mynetworktest` container:
+
+[source,bash]
+----
+[root@workstation podman]# podman ps
+CONTAINER ID  IMAGE                                                   COMMAND               CREATED         STATUS             PORTS       NAMES
+11fd588f624b  registry.access.redhat.com/rhscl/httpd-24-rhel7:latest  /usr/bin/run-http...  35 seconds ago  Up 35 seconds ago              mynetworktest
+----
+
+Try launching a few more containers:
+
+[source,bash]
+----
+[root@workstation podman]# podman run -d rhscl/httpd-24-rhel7
+9b4cbeca79b04671135ac604635095c94d8f2a51f99d2c2676628d0c12291a55
+
+[root@workstation podman]# podman run -d rhscl/httpd-24-rhel7
+cfba6c4fa574e5f1efc0e8b3c215c43efdc838690003fc5bf77eb983425e3897
+
+[root@workstation podman]# podman run -d rhscl/httpd-24-rhel7
+11ed2853870d72440eef540657a5016b6efc313d16aba056421857628e957415
+----
+
+Now, check the contents in `/var/lib/cni/networks/podman`:
+
+
+[source,bash]
+----
+[root@workstation podman]# ls -l /var/lib/cni/networks/podman
+total 20
+-rw-r--r--. 1 root root 70 Sep 22 11:38 10.88.0.2
+-rw-r--r--. 1 root root 70 Sep 22 11:41 10.88.0.3
+-rw-r--r--. 1 root root 70 Sep 22 11:41 10.88.0.4
+-rw-r--r--. 1 root root 70 Sep 22 11:41 10.88.0.5
+-rw-r--r--. 1 root root  9 Sep 22 11:41 last_reserved_ip.0
+-rwxr-x---. 1 root root  0 Sep 22 11:38 lock
+----
+
+Cleanup with:
+
+[source,bash]
+----
+[root@workstation ~]# podman rm -a -f
+32e2db9f03612fb8ad76f7dff01501eac4051bba7cabf71a209356bab460f04e
+505dca427887333d55fc7c7ac80054afc7f39e014ab84801146906b17e8b2ae7
+60e4ebf255e2817da98efda381e69622a3391f5226541565690bfb2f02c64f03
+76b23247927546f45cee71946af865ca404293eabeb491024987518bb5be3306
+a0d9ad7000cb12d3b1447e8d506fab0c5a0df8c819bda89b9cf8736483e41539
+[root@workstation ~]# exit
+logout
+----

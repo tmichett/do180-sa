@@ -19,9 +19,120 @@ ifdef::env-github[]
 endif::[]
 :imagesdir: ./images/
 
-=== Where can I find the actual OCI specification ?
+=== Where can I find the actual OCI specification?
 
 OCI spec: https://opencontainers.org/
 
-Runtime-spec https://github.com/opencontainers/runtime-spec 
+Runtime-spec https://github.com/opencontainers/runtime-spec
+
 Image-spec https://github.com/opencontainers/image-spec
+
+=== How can you block access to certain registries system-wide?
+
+This should now be possible because of https://bugzilla.redhat.com/show_bug.cgi?id=1787667
+
+..but you can’t really - https://bugzilla.redhat.com/show_bug.cgi?id=1811098
+
+Using the newer podman v2 configuration format:
+
+[source,bash]
+----
+[student@workstation ~]$ sudo vi /etc/containers/registries.conf
+unqualified-search-registries = ["registry.access.redhat.com", "registry.redhat.io", "quay.io"]
+
+[[registry]]
+prefix = "quay.io"
+location = "quay.io"
+insecure = false
+blocked = true
+----
+
+Now, lets give this a test by pulling from `quay.io`.  Both of these should fail based on the `location` and `blocked = true` in the `registries.conf`
+
+[source,bash]
+----
+[student@workstation ~]$ podman pull quay.io/redhattraining/httpd-parent:latest
+Trying to pull quay.io/redhattraining/httpd-parent:latest...
+Error: initializing source docker://quay.io/redhattraining/httpd-parent:latest: registry quay.io is blocked in /etc/containers/registries.conf or /home/student/.config/containers/registries.conf.d
+
+
+[student@workstation ~]$ podman pull quay.io/ajblum/mytest:latest
+Trying to pull quay.io/ajblum/mytest:latest...
+Error: initializing source docker://quay.io/ajblum/mytest:latest: registry quay.io is blocked in /etc/containers/registries.conf or /home/student/.config/containers/registries.conf.d
+----
+
+It’s also possible to block registries from a particular namespace.  For this, use the location for matching instead of the prefix:
+
+[source,bash]
+----
+unqualified-search-registries = ["registry.access.redhat.com", "registry.redhat.io", "quay.io"]
+
+[[registry]]
+location = "quay.io/ajblum"
+insecure = false
+blocked = true
+
+[student@workstation ~]$ podman pull quay.io/ajblum/mytest:latest
+Trying to pull quay.io/ajblum/mytest:latest...
+Error: initializing source docker://quay.io/ajblum/mytest:latest: registry quay.io is blocked in /etc/containers/registries.conf or /home/student/.config/containers/registries.conf.d
+----
+
+Fails as expected, let’s try a different repo from `quay.io`
+
+[source,bash]
+----
+[student@workstation ~]$ podman pull quay.io/redhattraining/httpd-parent:latest
+Trying to pull quay.io/redhattraining/httpd-parent:latest...
+Getting image source signatures
+----
+
+Works.  So, only a specific namespace can be blocked.
+
+Ok - Looks good, right ?  Now, we create a local `registries.conf` as a non-root user (even a blank file will work):
+
+[source,bash]
+----
+[student@workstation ~]$ mkdir -p ~/.config/containers/
+[student@workstation ~]$  touch ~/.config/containers/registries.conf
+
+[student@workstation ~]$ podman pull quay.io/ajblum/mytest:latest
+Trying to pull quay.io/ajblum/mytest:latest...
+Getting image source signatures
+----
+
+Worked … eek !  But, really nothing can stop a motivated user to work around this global config.
+
+From BZ https://bugzilla.redhat.com/show_bug.cgi?id=1811098
+
+[quote]
+____
+a local user could still pull an image via curl or by pointing the tools to another path.
+____
+
+A systems administrator would have to resort to other (more drastic) techniques like egress firewall rules or other network proxy/appliance to intercept these user requests.
+
+=== How to use the registry HTTP API directly?
+
+Commands like `podman search` build RESTful requests sent to various registries.  Consider searching `quay.io` for a repository called *mytest*:
+
+[source,bash]
+----
+[student@workstation ~]$ podman search quay.io/mytest
+INDEX     NAME                          DESCRIPTION                     STARS   OFFICIAL   AUTOMATED
+quay.io   quay.io/ihoukai/mytest                                        0
+quay.io   quay.io/little_arhat/mytest   test of homu/quay integration   0
+quay.io   quay.io/guenael/mytest                                        0
+quay.io   quay.io/ajblum/mytest                                         0
+----
+
+
+
+
+[root@workstation ~]# curl https://quay.io/v2/ajblum/mytest/tags/list
+{"name":"ajblum/mytest","tags":["1.0","latest","2.0","3.0","4.0","5.0"]}
+
+
+Additional curl troubleshooting: https://access.redhat.com/articles/3560571
+
+Docker Registry API docs: https://docs.docker.com/registry/spec/api/
+For Quay: https://docs.quay.io/api/swagger/

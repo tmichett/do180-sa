@@ -1,0 +1,251 @@
+:pygments-style: tango
+:source-highlighter: pygments
+:toc:
+:toclevels: 7
+:sectnums:
+:sectnumlevels: 6
+:numbered:
+:chapter-label:
+:icons: font
+ifndef::env-github[:icons: font]
+ifdef::env-github[]
+:status:
+:outfilesuffix: .adoc
+:caution-caption: :fire:
+:important-caption: :exclamation:
+:note-caption: :paperclip:
+:tip-caption: :bulb:
+:warning-caption: :warning:
+endif::[]
+:imagesdir: ./images/
+
+
+=== How does overlay work?
+
+The overlay kernel driver provides a POSIX filesystem by creating the union of several different directory paths together.
+
+[source,bash]
+----
+[student@workstation ~]$ modinfo overlay
+filename:       /lib/modules/4.18.0-372.9.1.el8.x86_64/kernel/fs/overlayfs/overlay.ko.xz
+alias:          fs-overlay
+license:        GPL
+description:    Overlay filesystem
+...SNIP...
+----
+
+This filesystem is used as default mount provided to containers.  The data written to this filesystem should be considered _ephemeral_, meaning short-lived or fleeting.
+Once a container is removed from a container host (via `podman rm`) the data written by that containerized process is also removed.  This storage driver is used by both podman and crio (ie openshift).
+
+For systems using podman, the underlying storage driver used for _ephemeral_ operations is configured in `/etc/containers/storage.conf`
+
+[source,bash]
+----
+[student@workstation ~]$ cat /etc/containers/storage.conf  | grep -v ^#
+[storage]
+
+driver = "overlay"
+runroot = "/run/containers/storage"
+graphroot = "/var/lib/containers/storage"
+----
+
+Although not explicitly given above, the "overlay" driver used by the latest RHEL and RHEL CoreOS systems is overlay version 2.  From https://docs.docker.com/storage/storagedriver/overlayfs-driver/#how-the-overlay2-driver-works
+
+[quote]
+____
+The overlay2 driver natively supports up to 128 lower OverlayFS layers.
+The original overlay driver only worked with 2 layers, extra layers in overlay relied on hard-linked directories.  This created excessive use of inodes (known limitation)
+____
+
+To really appreciate how the overlay driver works start by becoming the `root` user and create a few directories and files:
+
+[source,bash]
+----
+[student@workstation ~]$ sudo su -
+Last login: Wed Sep 21 16:27:30 EDT 2022 on pts/0
+[root@workstation ~]# mkdir -p /data/lower{1..3} /data/upper /data/work /data/merged
+[root@workstation ~]# touch /data/lower1/file{1..3}  /data/lower2/file{4..6}  /data/lower3/file{7..9}  /data/upper/file10
+
+[root@workstation ~]# tree /data
+/data
+├── lower1
+│   ├── file1
+│   ├── file2
+│   └── file3
+├── lower2
+│   ├── file4
+│   ├── file5
+│   └── file6
+├── lower3
+│   ├── file7
+│   ├── file8
+│   └── file9
+├── merged
+├── upper
+│   └── file10
+└── work
+
+6 directories, 10 files
+----
+
+Next, mount lower1, lower2, lower3, and upper together in a union mount using the overlay driver.
+
+[source,bash]
+----
+[root@workstation ~]# mount -t overlay overlay -o lowerdir=/data/lower1:/data/lower2:/data/lower3,upperdir=/data/upper,workdir=/data/work /data/merged
+[root@workstation ~]#
+
+[root@workstation ~]# df /data/merged
+Filesystem     1K-blocks    Used Available Use% Mounted on
+overlay         10371052 7556520   2814532  73% /data/merged
+
+[root@workstation ~]# mount | grep merged
+overlay on /data/merged type overlay (rw,relatime,seclabel,lowerdir=/data/lower1:/data/lower2:/data/lower3,upperdir=/data/upper,workdir=/data/work)
+----
+
+Notice how the overlay driver expects several unique mount options including *lowerdir*, *upperdir*, and *workdir*.
+The names of our directories could have been any string we wanted, but just to keep this activity straightforward, the names of the directories closely match the mount options that use them.
+
+At this point, your shell has access to a POSIX compliant filesystem mounted on `/data/merged`.  Try to make a few changes to the files in `/data/merged`:
+
+[source,bash]
+----
+[root@workstation ~]# ls -l /data/merged
+total 0
+-rw-r--r--. 1 root root 0 Sep 22 10:23 file1
+-rw-r--r--. 1 root root 0 Sep 22 10:23 file10
+-rw-r--r--. 1 root root 0 Sep 22 10:23 file2
+-rw-r--r--. 1 root root 0 Sep 22 10:23 file3
+-rw-r--r--. 1 root root 0 Sep 22 10:23 file4
+-rw-r--r--. 1 root root 0 Sep 22 10:23 file5
+-rw-r--r--. 1 root root 0 Sep 22 10:23 file6
+-rw-r--r--. 1 root root 0 Sep 22 10:23 file7
+-rw-r--r--. 1 root root 0 Sep 22 10:23 file8
+-rw-r--r--. 1 root root 0 Sep 22 10:23 file9
+
+# modify an existing file
+[root@workstation ~]# echo hello > /data/merged/file9
+
+# remove an existing file
+[root@workstation ~]# rm -f /data/merged/file1
+
+# create a new file
+[root@workstation ~]# touch /data/merged/file11
+
+# create a new directory
+[root@workstation ~]# mkdir /data/merged/dir1
+[root@workstation ~]#
+----
+
+All of these operations seem to work, lets confirm in `/data/merged`:
+
+[source,bash]
+----
+[root@workstation ~]# ls -l /data/merged
+total 4
+drwxr-xr-x. 2 root root 6 Sep 22 10:40 dir1
+-rw-r--r--. 1 root root 0 Sep 22 10:23 file10
+-rw-r--r--. 1 root root 0 Sep 22 10:40 file11
+-rw-r--r--. 1 root root 0 Sep 22 10:23 file2
+-rw-r--r--. 1 root root 0 Sep 22 10:23 file3
+-rw-r--r--. 1 root root 0 Sep 22 10:23 file4
+-rw-r--r--. 1 root root 0 Sep 22 10:23 file5
+-rw-r--r--. 1 root root 0 Sep 22 10:23 file6
+-rw-r--r--. 1 root root 0 Sep 22 10:23 file7
+-rw-r--r--. 1 root root 0 Sep 22 10:23 file8
+-rw-r--r--. 1 root root 6 Sep 22 10:40 file9
+----
+
+`dir1` and `file11` are now present.  `file1` is gone. `file9` is now a *6 byte* file.  All changes that we should expect from POSIX filesystem.
+
+Where there any changes to the lowerdir directories: `/data/lower1`,  `/data/lower2`, or `/data/lower3`
+
+[source,bash]
+----
+[root@workstation ~]# ls -l /data/lower{1..3}
+/data/lower1:
+total 0
+-rw-r--r--. 1 root root 0 Sep 22 10:23 file1
+-rw-r--r--. 1 root root 0 Sep 22 10:23 file2
+-rw-r--r--. 1 root root 0 Sep 22 10:23 file3
+
+/data/lower2:
+total 0
+-rw-r--r--. 1 root root 0 Sep 22 10:23 file4
+-rw-r--r--. 1 root root 0 Sep 22 10:23 file5
+-rw-r--r--. 1 root root 0 Sep 22 10:23 file6
+
+/data/lower3:
+total 0
+-rw-r--r--. 1 root root 0 Sep 22 10:23 file7
+-rw-r--r--. 1 root root 0 Sep 22 10:23 file8
+-rw-r--r--. 1 root root 0 Sep 22 10:23 file9
+----
+
+No changes at all.  `file1` is still there.  `file9` is still a *0 byte* file.  `dir1` and `file11` are not present at all.
+
+So where are all these changes being tracked ?  The _upperdir_ !!
+
+[source,bash]
+----
+[root@workstation ~]# ls -l /data/upper
+total 4
+drwxr-xr-x. 2 root root    6 Sep 22 10:40 dir1
+c---------. 2 root root 0, 0 Sep 22 10:40 file1
+-rw-r--r--. 1 root root    0 Sep 22 10:23 file10
+-rw-r--r--. 1 root root    0 Sep 22 10:40 file11
+-rw-r--r--. 1 root root    6 Sep 22 10:40 file9
+----
+
+Very interesting collection of files in `data/upper`.
+
+* First, notice the presence of `dir1` and `file11`.  Those were not in `/data/upper` at the start of this exercise.
+* Next, `file1` is a new but it is not a "regular" file.  Notice `c---------.`.  This is an indication that it is a special file called a "character" file.  Character files are used throughout Linux for various purposes.  Here it is being used by the overlay driver to *mask* a file so that it is not presented on the mountpoint.
+* Last, notice that `file9` is a *6 byte* file matching what we see in `/data/merged`.  `file9` exists in both `/data/lower2` and `data/upper`.  The overlay driver presents the data from only `data/upper` however.  So, the order of the lowerdir in relation to the upperdir is important.
+
+When running a container with `podman run` the libpod and the container runtime tools mount using this same overlay driver.  The `lowerdir` are based on the image in the `podman run` command.  The `upperdir` is a new directory where the changes can be tracked similar to `/data/upper` in this activity.
+
+Try creating a new file within a the ephemeral storage of a container:
+
+[source,bash]
+----
+[root@workstation ~]# exit
+logout
+[student@workstation ~]$ podman run --name overlaytest1 ubi8 touch /var/tmp/amazingfile
+[student@workstation ~]$
+[student@workstation ~]$ podman inspect overlaytest1 --format '{{.GraphDriver.Data.UpperDir}}'
+/home/student/.local/share/containers/storage/overlay/0498243e4703e41120240e8077d017ac65dcabc0f4b7ef2514ab02841df3650c/diff
+
+[student@workstation ~]$ ls -l /home/student/.local/share/containers/storage/overlay/0498243e4703e41120240e8077d017ac65dcabc0f4b7ef2514ab02841df3650c/diff/var/tmp
+total 0
+-rw-r--r--. 1 student student 0 Sep 22 11:01 amazingfile
+
+----
+
+Try removing a file:
+
+[source,bash]
+----
+[student@workstation ~]$ podman run --name overlaytest2 ubi8 rm -f /etc/motd
+[student@workstation ~]$ podman inspect overlaytest2 --format '{{.GraphDriver.Data.UpperDir}}'
+/home/student/.local/share/containers/storage/overlay/b663a3bf74e20a2af37f0278a124c554ac03dc5859f9ed68fcb15c0105711652/diff
+
+[student@workstation ~]$ ls -l /home/student/.local/share/containers/storage/overlay/b663a3bf74e20a2af37f0278a124c554ac03dc5859f9ed68fcb15c0105711652/diff/etc/motd
+c---------. 2 student student 0, 0 Sep 22 11:06 /home/student/.local/share/containers/storage/overlay/b663a3bf74e20a2af37f0278a124c554ac03dc5859f9ed68fcb15c0105711652/diff/etc/motd
+----
+
+It should make sense why we find a character device here in the upperdir for this particular container.
+
+To clean up from this exercise simple `umount /data/merged`
+
+[source,bash]
+----
+[student@workstation ~]$ sudo umount /data/merged
+
+[student@workstation ~]$ mount | grep merged
+[student@workstation ~]$
+----
+
+=== Has overlay2 always been the ephemeral storage driver used on container hosts?
+
+No.  See https://bugzilla.redhat.com/show_bug.cgi?id=1475625

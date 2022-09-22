@@ -19,14 +19,4 @@ ifdef::env-github[]
 endif::[]
 :imagesdir: ./images/
 
-== Chapter 4: Managing Container Images
-
-:sectnums:
-
-include::Chapters/CH4/ConfiguringRegistriesInPodman.adoc[]
-
-include::Chapters/CH4/RegistryAuthentication.adoc[]
-
-include::Chapters/CH4/ManipulatingContainerImages.adoc[]
-
-include::Chapters/CH4/PublishingImagesToARegistry.adoc[]
+=== 

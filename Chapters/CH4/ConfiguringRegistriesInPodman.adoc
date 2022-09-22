@@ -111,7 +111,7 @@ ____
 
 A systems administrator would have to resort to other (more drastic) techniques like egress firewall rules or other network proxy/appliance to intercept these user requests.
 
-=== How to use the registry HTTP API directly?
+=== How to communicate with the registry API directly?
 
 Commands like `podman search` build RESTful requests sent to various registries.  Consider searching `quay.io` for a repository called *mytest*:
 
@@ -125,14 +125,188 @@ quay.io   quay.io/guenael/mytest                                        0
 quay.io   quay.io/ajblum/mytest                                         0
 ----
 
+It is possible to build a request to a registries' API without using podman or skopeo at all.  Consider this example using `curl`:
 
-
-
-[root@workstation ~]# curl https://quay.io/v2/ajblum/mytest/tags/list
+[source,bash]
+----
+[student@workstation ~]$ curl https://quay.io/v2/ajblum/mytest/tags/list
 {"name":"ajblum/mytest","tags":["1.0","latest","2.0","3.0","4.0","5.0"]}
-
+----
 
 Additional curl troubleshooting: https://access.redhat.com/articles/3560571
 
+Different registries use different API's.
+
 Docker Registry API docs: https://docs.docker.com/registry/spec/api/
 For Quay: https://docs.quay.io/api/swagger/
+
+Consider the documentation from quay.io and build a request URL to list the public repositories available through the `ajblum` namespace.
+
+Navigate your browser to https://docs.quay.io/api/swagger/ and scroll down to the *List, create and manage repositories* seen here:
+
+image::api-repos.png[]
+
+Expand the operation GET `/api/v1/repository` and set public=true and namespace=ajblum as seen here:
+
+image::api-get-repo.png[]
+
+Now, scroll down a bit further and click on *Try it out!*
+
+image::api-try.png[]
+
+Copy the *Request URL* and give it a try using `curl`
+
+[source,bash]
+----
+[student@workstation ~]$ curl -L "https://quay.io/api/v1/repository?public=true&namespace=ajblum"
+{"repositories": [{"namespace": "ajblum", "name": "mytest", "description": "", "is_public": true, "kind": "image",...SNIP...
+
+[student@workstation ~]$ curl -Ls "https://quay.io/api/v1/repository?public=true&namespace=ajblum" | jq '.repositories[].name'
+"mytest"
+"myapp"
+"httpd-systemd"
+"versioned-hello"
+"myubi"
+"foo"
+"helloworld"
+"debezium-connector-postgres"
+"rhel7-attr"
+"hello-openshift"
+"myubitest"
+"mysigtest"
+"do180"
+----
+
+
+=== How to communicate with the registry API using `skopeo`?
+
+[source,bash]
+----
+[student@workstation ~]# skopeo inspect docker://quay.io/ajblum/mytest
+{
+    "Name": "quay.io/ajblum/mytest",
+    "Tag": "latest",
+    "Digest": "sha256:6cd0217844a2d778786dcc8c9c948aecc6ca1a36f8f16e5e4bbd4151f7ba5a61",
+    "RepoTags": [
+        "1.0",
+        "latest",
+        "2.0",
+        "3.0",
+        "4.0",
+        "5.0"
+...SNIP...
+----
+
+
+=== Other ways to copy images locally other than podman pull?
+
+`skopeo` is a powerful tool to use when working with container image registries.
+
+Consider how `skopeo` can be used to pull an image into a local directory for direct inspection:
+
+[source,bash]
+----
+[student@workstation ~]$ mkdir /tmp/mytest
+[student@workstation ~]$ skopeo copy docker://quay.io/ajblum/mytest:1.0 dir:/tmp/mytest
+[student@workstation mytest]$ cd /tmp/mytest/
+[student@workstation mytest]$  ls
+[student@workstation mytest]$ cat manifest.json
+[student@workstation mytest]$ cat manifest.json | json_reformat
+[student@workstation mytest]$ file a38d7adc1eb9f56b95435dfb6a51d26e225ef0181c0c71f9f8434c79e98aa59f
+[student@workstation mytest]$  tar xvzf a38d7adc1eb9f56b95435dfb6a51d26e225ef0181c0c71f9f8434c79e98aa59f
+----
+
+
+Other ways you might use skopeo to copy images:
+
+[source,bash]
+----
+[student@workstation ~]$ skopeo copy docker://quay.io/ajblum/mytest:1.0 containers-storage:quay.io/ajblum/mytest:1.0
+
+[student@workstation ~]$ skopeo copy docker://quay.io/ajblum/mytest:1.0 oci-archive:/tmp/mytest/mytest.tar
+
+[student@workstation ~]$  podman load -i /tmp/mytest/mytest.tar
+Getting image source signatures
+
+[student@workstation ~]$ podman images
+REPOSITORY   TAG      IMAGE ID       CREATED        SIZE
+<none>       <none>   a6a3e178a6bc   4 months ago   215MB
+----
+
+This is very useful for disconnected runtime enviornments without direct internet access.  Images can be copied and later transferred to those disconnected environments.
+
+What about registry.redhat.io ?
+
+This works:
+
+[source,bash]
+----
+[student@workstation ~]# skopeo inspect docker://registry.access.redhat.com/rhel
+{
+    "Name": "registry.access.redhat.com/rhel",
+    "Digest": "sha256:2d215868e282e68998adece762d374ea49d66266d9dee67776eddc80a3d8e168",
+    "RepoTags": [
+        "7.3-74",
+----
+
+But, not this:
+
+[source,bash]
+----
+[student@workstation ~]# skopeo inspect docker://registry.redhat.io/rhel
+FATA[0000] unable to retrieve auth token: invalid username/password
+----
+
+Skopeo will use the same authentication used by podman.  So, use `podman login` or `skopeo login` first.
+
+
+=== How can you pull an image using its digest?
+
+Suppose you are interested in specific images from registry.access.redhat.com/rhscl/httpd-24-rhel7
+
+[source,bash]
+----
+[student@workstation storage]$ skopeo inspect docker://registry.access.redhat.com/rhscl/httpd-24-rhel7:latest | head -10
+{
+    "Name": "registry.access.redhat.com/rhscl/httpd-24-rhel7",
+    "Digest": "sha256:02152fd99c0bcfae06af21301ad92ffa122a46e537465d2b6f064f56e5c0685f",
+    "RepoTags": [
+        "2.4-170.1638430400-source",
+        "2.4-170",
+        "2.4-172",
+        "2.4-146-source",
+        "2.4-136.1614612498",
+        "2.4-170.1638430400",
+----
+
+Compare to
+
+[source,bash]
+----
+[student@workstation ~]$ skopeo inspect docker://registry.access.redhat.com/rhscl/httpd-24-rhel7:2.4-172 | head -10
+{
+    "Name": "registry.access.redhat.com/rhscl/httpd-24-rhel7",
+    "Digest": "sha256:ed835f1a45efb7dfd62894274692f494ddbf83d1072019ecafc040574cce5886",
+    "RepoTags": [
+        "2.4-170.1638430400-source",
+        "2.4-170",
+        "2.4-172",
+        "2.4-146-source",
+        "2.4-136.1614612498",
+        "2.4-170.1638430400",
+----
+
+We could make a local copy using the tag “2.4-172” but lets try using this digest:
+
+[source,bash]
+-----
+[student@workstation storage]$ podman pull registry.access.redhat.com/rhscl/httpd-24-rhel7@sha256:ed835f1a45efb7dfd62894274692f494ddbf83d1072019ecafc040574cce5886
+…SNIP…
+fcea1b0658e6a351aec4119d8c9ee2adb725e151536b98aa8c13d4c6b8e8647b
+
+
+[student@workstation storage]$ podman images
+registry.access.redhat.com/rhscl/httpd-24-rhel7  <none>      fcea1b0658e6  2 months ago  329 MB
+----
+
+We see later how we can assign a local tag to this image if we want.

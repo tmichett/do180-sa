@@ -301,9 +301,8 @@ We could make a local copy using the tag “2.4-172” but lets try using this d
 [source,bash]
 -----
 [student@workstation storage]$ podman pull registry.access.redhat.com/rhscl/httpd-24-rhel7@sha256:ed835f1a45efb7dfd62894274692f494ddbf83d1072019ecafc040574cce5886
-…SNIP…
+...SNIP...
 fcea1b0658e6a351aec4119d8c9ee2adb725e151536b98aa8c13d4c6b8e8647b
-
 
 [student@workstation storage]$ podman images
 registry.access.redhat.com/rhscl/httpd-24-rhel7  <none>      fcea1b0658e6  2 months ago  329 MB

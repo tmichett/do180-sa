@@ -19,4 +19,135 @@ ifdef::env-github[]
 endif::[]
 :imagesdir: ./images/
 
-=== 
+=== How to login to a registry using a service account?
+
+Container images from some of the supported Red Hat registries require authentication.  See https://access.redhat.com/RegistryAuthentication
+
+One such registry is `registry.redhat.io`.  Try pulling an image from this registry:
+
+[source,bash]
+----
+[student@workstation ~]$ podman pull registry.redhat.io/rhel7
+Trying to pull registry.redhat.io/rhel7...Failed
+error pulling image "registry.redhat.io/rhel7": unable to pull registry.redhat.io/rhel7: unable to pull image: Error determining manifest MIME type for docker://registry.redhat.io/rhel7:latest: unable to retrieve auth token: invalid username/password
+----
+
+As discussed in the DO180 course, `podman login` is one way to authenticate with `registry.redhat.io`
+
+[source,bash]
+----
+[student@workstation ~]$ podman login --help
+Login to a container registry
+
+Description:
+  Login to a container registry on a specified server.
+
+Usage:
+  podman login [options] [REGISTRY]
+
+Examples:
+  podman login quay.io
+  podman login --username ... --password ... quay.io
+  podman login --authfile dir/auth.json quay.io
+----
+
+Using your customer portal (ie access.redhat.com) *username* and *password* however is not recommended for security reasons.  Do a little test and see.
+
+Make sure to use your customer portal login and password so that authentication is successful:
+
+[source,bash]
+----
+[student@workstation ~]$ podman login -u your-username registry.redhat.io
+Password:
+Login Succeeded!
+
+[student@workstation ~]$ cat ${XDG_RUNTIME_DIR}/containers/auth.json
+{
+	"auths": {
+		"registry.redhat.io": {
+			"auth": "some00000random1111string"
+		}
+	}
+}
+----
+
+It may seem like the *auth* string "some00000random1111string" is encrypted and safe from malicious attack.  But, in fact, this is string is _encoded_ not _encrypted_
+
+Meaning, it is easy to take an encoded string and decode it back to the original string.  Try it using your auth string (the string given in the code snip is an example and not valid):
+
+[source,bash]
+----
+[student@workstation ~]$ echo -n "some00000random1111string" | base64 -d
+(username and password in plain text)
+----
+
+Not good.  Let's logout and clean up our shell history:
+
+[source,bash]
+----
+[student@workstation ~]$ podman logout registry.redhat.io
+Removed login credentials for registry.redhat.io
+[student@workstation ~]$ history -c
+[student@workstation ~]$
+----
+
+Instead, login into registry.redhat.io using a *Registry Service Account*  Navigate your browser to https://access.redhat.com/terms-based-registry/#/
+
+Log into the customer portal via your browser if you have not already.
+
+image::new-service-account.png[]
+
+Click on the blue "New Service Account"
+
+image::create-service-account.png[]
+
+Fill in a name that includes some value that you will remember.  Additionally, you can enter a Description as well.  Then click *Create*.
+
+This will create a new *Registry Service Account* you can use with podman as well Red Hat Openshift to authenticate to `registry.redhat.io`
+
+To test, navigate to the newly created Service Account.  Click the tab *Docker Login* like in this example:
+
+image::docker-login.png[]
+
+Copy the login command and paste it into an editor like `gedit`.  You will need to modify the command so that `podman` is used and not `docker`.
+
+With the modified `podman login` run it on the workstation machine:
+
+[source,bash]
+----
+[student@workstation ~]$ podman login -u='your-service-account-name' -p=...SNIP... registry.redhat.io
+Login Succeeded!
+----
+
+The service account credentials are stored in `${XDG_RUNTIME_DIR}/containers/auth.json` just as the customer portal credentials were before.  The service account credentials, however, are limited to providing registry access through the registry service and can be removed/revoked through the customer portal.
+
+=== What is the expiration for authentication access tokens?
+
+Normal username and password authentication with registry.redhat.io will result in the user’s info being cached in `${XDG_RUNTIME_DIR}/containers/auth.json`
+
+[source,bash]
+----
+{
+    "auths": {
+        "registry.redhat.io": {
+            "auth": "some00000random1111string"
+        }
+    }
+}
+----
+
+When podman runs commands (like pull) podman will use these credentials to obtain a token that is short-lived (300s).  For example,
+
+[source,bash]
+----
+[student@workstation ~]$ curl -L -u myusername "https://sso.redhat.com/auth/realms/rhcc/protocol/redhat-docker-v2/auth?service=docker-registry&client_id=curl&scope=repository:rhel:pull"
+Enter host password for user 'myusername':
+
+{"token":...SNIP...,"expires_in":300,"issued_at":"2022-09-22T19:04:35Z"}
+----
+
+You can try the example above by replacing `myusername` with the login you use to the customer portal.
+
+As given in this output, a successful login using `podman login` will result in a token that expires after *300* seconds.  After which time, a new request will need to be made for a new token.
+
+SEE https://access.redhat.com/articles/3560571 for more help using curl to troubleshoot authentication issues.

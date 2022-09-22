@@ -248,4 +248,89 @@ To clean up from this exercise simple `umount /data/merged`
 
 === Has overlay2 always been the ephemeral storage driver used on container hosts?
 
-No.  See https://bugzilla.redhat.com/show_bug.cgi?id=1475625
+No. Previously `devicemapper` was the default storage driver in early RHEL7 and RHEL Atomic Host.  This changed to use `overlay` starting with this errata https://access.redhat.com/errata/RHBA-2018:1064
+
+See https://bugzilla.redhat.com/show_bug.cgi?id=1475625
+
+=== How to apply selinux labels when mounting persistent storage?
+
+The selinux label on a volume can be made persistent on a host using an `semanage fcontext` comamnd as discussed in the DO180 course material:
+
+[source,bash]
+----
+[student@workstation ~]$ sudo semanage fcontext -a -t container_file_t '/home/student/mydata(/.*)?'
+
+[student@workstation ~]$ sudo restorecon -Rv /home/student/mydata/
+/home/student/mydata not reset as customized by admin to unconfined_u:object_r:container_file_t:s0
+----
+
+
+Alternatively use the :Z option like:
+
+[source,bash]
+----
+[student@workstation ~]$ mkdir mydata1
+
+[student@workstation ~]$  podman unshare chown 1001 mydata1
+
+[student@workstation ~]$  podman run -d -v /home/student/mydata1:/var/www/html:Z registry.redhat.io/rhscl/httpd-24-rhel7
+9c9d8752085e22ad32407b1f655a1a49e2427ceeae46ca6455665c6b0412db96
+
+[student@workstation ~]$ podman exec 9c ls -ldZ /var/www/html
+drwxrwxr-x. default root system_u:object_r:container_file_t:s0:c1002,c1014 /var/www/html
+
+[student@workstation ~]$ podman exec 9c ls -ldZ /var/www/html
+drwxrwxr-x. default root system_u:object_r:container_file_t:s0:c1002,c1014 /var/www/html
+
+[student@workstation ~]$ podman exec 9c touch /var/www/html/index.html
+
+[student@workstation ~]$ ls -lZ mydata1
+total 0
+-rw-r--r--. 1 101000 student system_u:object_r:container_file_t:s0:c1002,c1014 0 Sep 14 11:03 index.html
+----
+
+It is also possible to use one of the persistent volumes managed with `podman volume`:
+
+[source,bash]
+----
+[student@workstation ~]$ podman run -d -v myvol:/var/www/html rhscl/httpd-24-rhel7
+6e5f9dc5474c4853e0bf01e508ba2471bbc190830a1c51b06204dd436846f07e
+
+[student@workstation ~]$ podman volume list
+DRIVER   VOLUME NAME
+local    myvol
+
+[student@workstation ~]$ podman volume inspect myvol
+[
+     {
+          "Name": "myvol",
+          "Driver": "local",
+          "Mountpoint": "/home/student/.local/share/containers/storage/volumes/myvol/_data",
+          "CreatedAt": "2022-09-22T11:31:06.486128153-04:00",
+          "Labels": {},
+          "Scope": "local",
+          "Options": {},
+          "UID": 1001,
+          "MountCount": 0,
+          "NeedsCopyUp": true
+     }
+]
+
+[student@workstation ~]$ podman inspect 6e --format '{{.Mounts}}'
+[{volume myvol /home/student/.local/share/containers/storage/volumes/myvol/_data /var/www/html local  [noexec nosuid nodev rbind] true rprivate}]
+
+[student@workstation ~]$ podman exec -it 6e /bin/bash
+bash-4.2$ df -h /var/www/html
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/vda3       9.9G  7.3G  2.7G  73% /var/www/html
+
+
+bash-4.2$ touch /var/www/html/index.html
+bash-4.2$ exit
+exit
+
+[student@workstation ~]$ ls /home/student/.local/share/containers/storage/volumes/myvol/_data -lZ
+total 0
+-rw-r--r--. 1 101000 student system_u:object_r:container_file_t:s0 0 Sep 22 11:32 index.html
+
+----

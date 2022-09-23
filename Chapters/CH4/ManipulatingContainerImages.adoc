@@ -19,4 +19,484 @@ ifdef::env-github[]
 endif::[]
 :imagesdir: ./images/
 
-=== 
+=== Working with different container formats using `podman save`
+
+Suppose you would like to archive of `registry.redhat.io/rhscl/httpd-24-rhel7:latest` to a local file.
+
+[source,bash]
+----
+[student@workstation ~]$ podman images
+REPOSITORY                               TAG         IMAGE ID      CREATED     SIZE
+registry.redhat.io/rhscl/httpd-24-rhel7  latest      87504a9170d1  7 days ago  332 MB
+----
+
+One method would be to use `podman save` like the following:
+
+[source,bash]
+----
+[student@workstation ~]$ mkdir httpd-save
+
+[student@workstation ~]$ podman save -o httpd-save/httpd.tar registry.redhat.io/rhscl/httpd-24-rhel7:latest
+Copying blob 7f77859de5cc done
+Copying blob d668157579e4 done
+Copying blob ab67ee0ba256 done
+Copying blob e63854ca1fdd done
+Copying config 87504a9170 done
+Writing manifest to image destination
+Storing signatures
+----
+
+Check the contents of `httpd.tar`
+
+
+student@workstation ~]$ cd httpd-save/
+[student@workstation httpd-save]$
+[student@workstation httpd-save]$ tar xvf httpd.tar
+---
+
+This will expand the archive into a collection of files including several `json` files and others with `.tar` extensions.
+An inventory of these files is stored in the `manifest.json`:
+
+[source,bash]
+----
+[student@workstation httpd-save]$ cat manifest.json | json_reformat
+[
+    {
+        "Config": "87504a9170d1a4a5c10e0fffb69f1bf32f9e94362d96edab0a0c781c2c471548.json",
+        "RepoTags": [
+            "registry.redhat.io/rhscl/httpd-24-rhel7:latest"
+        ],
+        "Layers": [
+            "7f77859de5ccd6cc3e73934985132cd2ac67a2f4fe46db2a8a2e8684317c39d5.tar",
+            "d668157579e4aa075a093bcd581b9266c892079200632dbd9ff0f3deae4d4f1c.tar",
+            "ab67ee0ba256b41dddbabfdfbe3dad2f587335c8e224138cbe1196f867dae8b2.tar",
+            "e63854ca1fdd26fd51acce6e047e6ac78aae7da71d85c9b3847418c5e3c911a7.tar"
+        ]
+    }
+]
+----
+
+The file identified in the `Config` is also a `json` file.  It contains the image metadata typically explored using commands like `podman inspect`:
+
+[source,bash]
+----
+[student@workstation httpd-save]$ cat 87504a9170d1a4a5c10e0fffb69f1bf32f9e94362d96edab0a0c781c2c471548.json | jq | head
+{
+  "architecture": "amd64",
+  "config": {
+    "Hostname": "771ed3e47dd5",
+    "Domainname": "",
+    "User": "1001",
+    "AttachStdin": false,
+...SNIP...
+----
+
+The image layers are contained in the `.tar` archives.
+
+[source,bash]
+----
+[student@workstation httpd-save]$ ls *.tar
+7f77859de5ccd6cc3e73934985132cd2ac67a2f4fe46db2a8a2e8684317c39d5.tar  d668157579e4aa075a093bcd581b9266c892079200632dbd9ff0f3deae4d4f1c.tar
+ab67ee0ba256b41dddbabfdfbe3dad2f587335c8e224138cbe1196f867dae8b2.tar  e63854ca1fdd26fd51acce6e047e6ac78aae7da71d85c9b3847418c5e3c911a7.tar
+
+[student@workstation httpd-save]$ tar tvf 7f77859de5ccd6cc3e73934985132cd2ac67a2f4fe46db2a8a2e8684317c39d5.tar | head
+dr-xr-xr-x root/root         0 2022-09-15 10:30 ./
+dr-xr-xr-x root/root         0 2017-12-14 12:23 ./boot/
+drwxr-xr-x root/root         0 2022-09-15 10:28 ./dev/
+drwxr-xr-x root/root         0 2022-09-15 10:28 ./proc/
+drwxr-xr-x root/root         0 2022-09-15 10:30 ./run/
+drwxr-xr-x root/root         0 2022-09-15 10:30 ./run/sepermit/
+drwxr-xr-x root/root         0 2022-09-15 10:30 ./run/log/
+drwxr-xr-x root/root         0 2022-09-15 10:30 ./run/lock/
+drwxr-xr-x root/root         0 2022-09-15 10:30 ./run/lock/subsys/
+drwxrwxr-x root/lock         0 2022-09-15 10:30 ./run/lock/lockdev/
+----
+
+These layers will make up the contents of the `lowerdir` in the `overlayfs` mount.
+
+The format used in this example is one of the original image formats based on docker v1.  From `man podman-save`
+
+[quote]
+____
+--format=format
+    An image format to produce, one of:
+
+┌───────────────┬───────────────────────────────────────────────────┐
+│Format         │ Description                                       │
+├───────────────┼───────────────────────────────────────────────────┤
+│docker-archive │ A tar archive interoperable with docker load(1)   │
+│               │ (the default)                                     │
+├───────────────┼───────────────────────────────────────────────────┤
+│oci-archive    │ A tar archive using the OCI Image Format          │
+├───────────────┼───────────────────────────────────────────────────┤
+│oci-dir        │ A directory using the OCI Image Format            │
+├───────────────┼───────────────────────────────────────────────────┤
+│docker-dir     │ dir transport (see containers-transports(5)) with │
+│               │ v2s2 manifest type                                │
+└───────────────┴───────────────────────────────────────────────────┘
+____
+
+Try to save using `--format=docker-dir`
+
+[source,bash]
+----
+[student@workstation httpd-save]$ rm -rf ~/httpd-save/*
+
+[student@workstation httpd-save]$ podman save -o ~/httpd-save --format=docker-dir registry.redhat.io/rhscl/httpd-24-rhel7:latest
+
+[student@workstation httpd-save]$ cat manifest.json | json_reformat
+{
+    "schemaVersion": 2,
+    "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
+    "config": {
+        "mediaType": "application/vnd.docker.container.image.v1+json",
+        "size": 8166,
+        "digest": "sha256:87504a9170d1a4a5c10e0fffb69f1bf32f9e94362d96edab0a0c781c2c471548"
+    },
+
+----
+
+To save as `oci-archive`
+
+[source,bash]
+----
+[student@workstation httpd-save]$ rm -rf ~/httpd-save/*
+[student@workstation httpd-save]$ podman save -o ~/httpd-save/httpd.tar --format=oci-archive registry.redhat.io/rhscl/httpd-24-rhel7:latest
+----
+
+Then extract to explore the contents:
+
+[source,bash]
+----
+[student@workstation httpd-save]$ tar xvf httpd.tar
+blobs/
+blobs/sha256/
+blobs/sha256/275175e1b487d514267f6a455d07e61f704facd3e5d871ad1e74cf2f4f503af9
+blobs/sha256/4897ac2964752dc45938d9fded59412a245429903d5facfbc507b21ce48ea2c0
+blobs/sha256/939a1202230b5fb245052c0f3458565307cde22fcb88fa3498410e9d4e09ed15
+blobs/sha256/981b2ef3f241320f27d8e989922b5efa0602527fa67891055f335a116b6131b5
+blobs/sha256/d336fcea58570b9194f5d07e09cfa82cb1b92ce53f35694ef2269716b92bd786
+blobs/sha256/da7f54b2dbe3875198ebf2fd99c131ef84a820d025226cd0b2356f4531e4241a
+index.json
+oci-layout
+
+[student@workstation httpd-save]$ cat index.json | json_reformat
+{
+    "schemaVersion": 2,
+    "manifests": [
+        {
+            "mediaType": "application/vnd.oci.image.manifest.v1+json",
+            "digest": "sha256:981b2ef3f241320f27d8e989922b5efa0602527fa67891055f335a116b6131b5",
+            "size": 879,
+            "annotations": {
+                "org.opencontainers.image.ref.name": "registry.redhat.io/rhscl/httpd-24-rhel7:latest"
+            }
+        }
+    ]
+}
+----
+
+The OCI Image spec can be found here: https://github.com/opencontainers/image-spec/blob/main/spec.md
+
+Cleanup with:
+
+[source,bash]
+----
+[student@workstation httpd-save]$ cd ~
+[student@workstation ~]$ rm -rf httpd-save
+[student@workstation ~]$
+----
+
+
+=== What does the message "Storing signatures" mean?
+
+When working with various container tools while retrieving or copying a container image, you may have noticed the message `Storing signatures` like:
+
+[source,bash]
+----
+[student@workstation ~]$ podman pull registry.redhat.io/ubi8:latest
+Trying to pull registry.redhat.io/ubi8:latest...
+...SNIP...
+Storing signatures
+10f854072e7e7b7a715bcd78cf7925851159f9db82a2ff1c9b35806356352029
+----
+
+or
+
+[source,bash]
+----
+[student@workstation ~]$ skopeo copy docker://registry.redhat.io/ubi8:latest containers-storage:localhost/ubi8:latest
+Storing signatures
+----
+
+In either case, the local storage will include references to these images:
+
+[source,bash]
+----
+[student@workstation ~]$ podman images
+REPOSITORY                               TAG         IMAGE ID      CREATED      SIZE
+localhost/ubi8                           latest      10f854072e7e  2 weeks ago  227 MB
+registry.redhat.io/ubi8                  latest      10f854072e7e  2 weeks ago  227 MB
+----
+
+In this case, these images were copied from Red Hat's container registry.  Red Hat signs the containers it distributes so that any system can verify the containers came from Red Hat.
+
+`podman` and `skopeo` will use the image trust configured in `/etc/containers/policy.json`
+
+[source,bash]
+----
+[student@workstation ~]$ podman image trust show
+default                     accept
+registry.access.redhat.com  signedBy                security@redhat.com, security@redhat.com  https://access.redhat.com/webassets/docker/content/sigstore
+registry.redhat.io          signedBy                security@redhat.com, security@redhat.com  https://registry.redhat.io/containers/sigstore
+                            insecureAcceptAnything
+----
+
+Inspect `/etc/containers/policy.json`
+
+[source,bash]
+----
+[student@workstation ~]$ cat /etc/containers/policy.json
+"transports": {
+    "docker": {
+  "registry.access.redhat.com": [
+{
+    "type": "signedBy",
+    "keyType": "GPGKeys",
+    "keyPath": "/etc/pki/rpm-gpg/RPM-GPG-KEY-redhat-release"
+}
+  ],
+  "registry.redhat.io": [
+{
+    "type": "signedBy",
+    "keyType": "GPGKeys",
+    "keyPath": "/etc/pki/rpm-gpg/RPM-GPG-KEY-redhat-release"
+}
+  ]
+},
+----
+
+This indicates that images are validated from `registry.access.redhat.com` and `registry.redhat.io` using the same GPGKeys `rpm` uses to validate software packages installed through the RHEL package manager (ie yum/rpm).
+
+Once the container images are copied to the local system however those signatures are removed.
+
+Some tools like `skopeo copy` will report fatal messages when using an archive destination transport like oci-archive:
+
+[source,bash]
+----
+[student@workstation ~]$ skopeo copy docker://registry.redhat.io/ubi8:latest oci-archive://home/student/mytest/ubi8.tar
+Getting image source signatures
+Checking if image destination supports signatures
+FATA[0001] Can not copy signatures to oci-archive://home/student/mytest/ubi8.tar:: Pushing signatures for OCI images is not supported
+----
+
+This is expected.  `podman pull` will remove the signatures after validating but does so silently.
+
+From https://github.com/containers/skopeo/issues/589
+
+[quote]
+____
+Neither Docker daemon nor OCI supports storing the signatures, and `skopeo copy` refuses to just silently drop them.
+
+You can use skopeo copy --remove-signatures to make the copy anyway; the signatures will be still read and policy.json will still be enforced, they just won’t be written into the destination.
+____
+
+Try making the `skopeo copy` again using the `--remove-signatures` option:
+
+[source,bash]
+----
+[student@workstation ~]$ skopeo copy docker://registry.redhat.io/ubi8:latest oci-archive://home/student/mytest/ubi8.tar --remove-signatures
+Copying blob 1b3417e31a5e done
+Copying blob 809fe483e885 done
+Copying config 5291d146cb done
+Writing manifest to image destination
+Storing signatures
+----
+
+Worked! This oci-archive can be loaded into the local container storage for use by the container runtime with:
+
+[source,bash]
+----
+[student@workstation ~]$ podman load -i /home/student/mytest/ubi8.tar
+Getting image source signatures
+Copying blob 1b3417e31a5e skipped: already exists
+Copying blob 809fe483e885 skipped: already exists
+Copying config 5291d146cb done
+Writing manifest to image destination
+Storing signatures
+Loaded image(s): sha256:5291d146cbbe8d356ca11a987a2b2c44269a768d460afa101e01ed7e7fb245b8
+----
+
+
+What about images from other public registries?
+
+It depends on the image.  Many are not signed at all.  It is also possible that they are signed but verification on local container host has not been configured with `podman image trust`
+
+[source,bash]
+----
+[student@workstation ~]$ rm -rf mytest
+
+[student@workstation ~]$ mkdir mytest
+
+[student@workstation ~]$ skopeo copy docker://quay.io/ajblum/hello-openshift:latest dir:/home/student/mytest
+
+[student@workstation ~]$ ls /home/student/mytest
+7af3297a3fb4487b740ed6798163f618e6eddea1ee5fa0ba340329fcae31c8f6  b30065c58b6f2272f190bddd84e9adb6900f8946f92900e18d19622413d3ebc0  version
+a3ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d4  manifest.json
+----
+
+Compare with:
+
+[source,bash]
+----
+[student@workstation ~]$ mkdir mytest1
+
+[student@workstation ~]$ skopeo copy docker://registry.redhat.io/ubi8:latest dir:/home/student/mytest1
+
+[student@workstation ~]$ ls /home/student/mytest1
+10f854072e7e7b7a715bcd78cf7925851159f9db82a2ff1c9b35806356352029  manifest.json  signature-3  signature-6
+1b3417e31a5e0e64f861e121d4efed3152e75aaa85026cd784cd0070e063daa3  signature-1    signature-4  version
+809fe483e88523e7021d76b001a552856f216430023bdc0aeff8fce8df385535  signature-2    signature-5
+----
+
+If you would like to sign your custom images with your personal GPG signatures consider:https://developers.redhat.com/blog/2019/10/29/verifying-signatures-of-red-hat-container-images
+
+=== How can you remove host volumes using `podman system prune` ?
+
+
+Consider creating a container using a new volume called *myvol*:
+
+[source,bash]
+----
+[student@workstation ~]$ podman run -d -v myvol:/var/www/html rhscl/httpd-24-rhel7
+6e5f9dc5474c4853e0bf01e508ba2471bbc190830a1c51b06204dd436846f07e
+
+[student@workstation ~]$ podman volume list
+DRIVER   VOLUME NAME
+local    myvol
+----
+
+In this case, `podman` created a directory on the host for us.
+
+[source,bash]
+----
+[student@workstation ~]$ podman inspect 6e --format '{{.Mounts}}'
+[{volume myvol /home/student/.local/share/containers/storage/volumes/myvol/_data /var/www/html local  [noexec nosuid nodev rbind] true rprivate}]
+----
+
+Use this storage as you would any persistent volume:
+
+[source,bash]
+----
+[student@workstation ~]$ podman exec -it 6e /bin/bash
+bash-4.2$ df -h
+Filesystem      Size  Used Avail Use% Mounted on
+fuse-overlayfs  9.9G  6.3G  3.7G  64% /
+tmpfs            64M     0   64M   0% /dev
+tmpfs           580M  100K  580M   1% /etc/hosts
+shm              63M     0   63M   0% /dev/shm
+/dev/vda3       9.9G  6.3G  3.7G  64% /var/www/html
+tmpfs           2.9G     0  2.9G   0% /sys/fs/cgroup
+devtmpfs        2.8G     0  2.8G   0% /dev/tty
+tmpfs           2.9G     0  2.9G   0% /proc/acpi
+tmpfs           2.9G     0  2.9G   0% /proc/scsi
+tmpfs           2.9G     0  2.9G   0% /sys/firmware
+tmpfs           2.9G     0  2.9G   0% /sys/fs/selinux
+bash-4.2$ touch /var/www/html/index.html
+bash-4.2$ exit
+exit
+----
+
+Now try to delete the container using `podman system prune` with the `--volumes` argument:
+
+[source,bash]
+----
+[student@workstation ~]$ podman ps
+CONTAINER ID  IMAGE                                                   COMMAND               CREATED        STATUS            PORTS  NAMES
+6e5f9dc5474c  registry.access.redhat.com/rhscl/httpd-24-rhel7:latest  /usr/bin/run-http...  2 minutes ago  Up 2 minutes ago         youthful_mahavira
+[student@workstation ~]$ podman stop 6e
+6e5f9dc5474c4853e0bf01e508ba2471bbc190830a1c51b06204dd436846f07e
+[student@workstation ~]$ podman system prune --volumes
+
+WARNING! This will remove:
+        - all stopped containers
+        - all volumes not used by at least one container
+        - all stopped pods
+        - all dangling images
+        - all build cache
+Are you sure you want to continue? [y/N] y
+Deleted Pods
+Deleted Containers
+6e5f9dc5474c4853e0bf01e508ba2471bbc190830a1c51b06204dd436846f07e
+Deleted Volumes
+myvol
+----
+
+
+
+=== Will `podman system prune --volumes` delete ALL volumes?
+
+No. *volumes* created outside of `podman` will not be removed/pruned.  Try it:
+
+[source,bash]
+----
+[student@workstation ~]$ podman volume list
+[student@workstation ~]$
+
+[student@workstation ~]$ mkdir mydir
+[student@workstation ~]$ podman unshare chown 1001:1001 mydir
+[student@workstation ~]$ podman unshare chcon -t container_file_t mydir
+[student@workstation ~]$ podman run -d -v /home/student/mydir:/var/www/html rhscl/httpd-24-rhel7
+5e0175ff9761696c20887cd450a4500552e3ed877cfd62fc4f43fb4c0d39c03f
+
+[student@workstation ~]$ podman volume list
+[student@workstation ~]$
+---
+
+No volume listed.  This volume was not created with `podman volume`.
+
+
+[source,bash]
+----
+[student@workstation ~]$ podman inspect 5e --format '{{.Mounts}}'
+[{bind  /home/student/mydir /var/www/html   [rbind] true rprivate}]
+[student@workstation ~]$ ls -ldZ /home/student/mydir
+drwxrwxr-x. 2 101000 101000 unconfined_u:object_r:container_file_t:s0 6 Sep 22 16:07 /home/student/mydir
+----
+
+Now, stop the container and try to `prune` it:
+
+
+[source,bash]
+----
+[student@workstation ~]$ podman stop 5e
+5e0175ff9761696c20887cd450a4500552e3ed877cfd62fc4f43fb4c0d39c03f
+[student@workstation ~]$ podman system prune --volumes
+
+WARNING! This will remove:
+        - all stopped containers
+        - all volumes not used by at least one container
+        - all stopped pods
+        - all dangling images
+        - all build cache
+Are you sure you want to continue? [y/N] y
+Deleted Pods
+Deleted Containers
+5e0175ff9761696c20887cd450a4500552e3ed877cfd62fc4f43fb4c0d39c03f
+Deleted Volumes
+----
+
+Yet, the host directory `/home/student/mydir` is still present:
+
+[source,bash]
+----
+[student@workstation ~]$ ls -ldZ /home/student/mydir
+drwxrwxr-x. 2 101000 101000 unconfined_u:object_r:container_file_t:s0 6 Sep 22 16:07 /home/student/mydir
+----
+
+There are also other times `podman system prune` will not remove host directories.  SEE https://bugzilla.redhat.com/show_bug.cgi?id=1811570#c15 :
+
+[quote]
+____
+podman system prune should NOT be removing buildah containers/images.
+____

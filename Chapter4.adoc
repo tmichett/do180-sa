@@ -28,5 +28,3 @@ include::Chapters/CH4/ConfiguringRegistriesInPodman.adoc[]
 include::Chapters/CH4/RegistryAuthentication.adoc[]
 
 include::Chapters/CH4/ManipulatingContainerImages.adoc[]
-
-include::Chapters/CH4/PublishingImagesToARegistry.adoc[]

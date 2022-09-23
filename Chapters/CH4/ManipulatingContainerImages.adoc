@@ -117,12 +117,13 @@ These layers will make up the contents of the `lowerdir` in the `overlayfs` moun
 The format used in this example is one of the original image formats based on docker v1.
 From `man podman-save` `--format` can be used to generate images in different formats according to this table:
 
+[cols="4a,4a",options=header]
 |===
 |Format |Description
-│docker-archive │ A tar archive interoperable with docker load(1) (the default)
-│oci-archive    │ A tar archive using the OCI Image Format
-│oci-dir        │ A directory using the OCI Image Format
-│docker-dir     │ dir transport (see containers-transports(5)) with v2s2 manifest type
+|docker-archive | A tar archive interoperable with docker load(1) (the default)
+|oci-archive |A tar archive using the OCI Image Format
+|oci-dir |A directory using the OCI Image Format
+|docker-dir | dir transport (see containers-transports(5)) with v2s2 manifest type
 |===
 
 Try to save using `--format=docker-dir`

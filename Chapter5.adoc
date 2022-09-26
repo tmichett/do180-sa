@@ -31,5 +31,3 @@ include::Chapters/CH5/ExecVsShell.adoc[]
 include::Chapters/CH5/RunAndLayers.adoc[]
 
 include::Chapters/CH5/CopyVsAdd.adoc[]
-
-include::Chapters/CH5/AddingMetadata.adoc[]

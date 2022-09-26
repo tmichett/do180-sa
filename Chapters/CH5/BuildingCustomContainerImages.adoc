@@ -20,4 +20,151 @@ endif::[]
 :imagesdir: ./images/
 
 
-=== 
+=== Why do I get permission denied building images after running su - (or sudo su -) ?
+
+It is common for container build environments to run as a specific user.  Gitlab, for example, uses the `gitlab-runner` user when executing CI/CD jobs that include `buildah` or `podman build` commands.
+
+Consider this example where the `devops` user on the `workstation` machine is used for building container images.
+
+Assume that as the `student` user, you have already logged into the registry `registry.redhat.io`:
+
+[source,bash]
+----
+[student@workstation ~]$ podman login --get-login registry.redhat.io
+rhn-support-ablum
+----
+
+In this example, however, it is the `devops` user that will be executing the `podman build`.  Become the `devops` user and create a simple `Containerfile` that leverages the `uib8:latest` image from `registry.redhat.io`:
+
+[source,bash]
+----
+[student@workstation ~]$ sudo su - devops
+
+[devops@workstation ~]$  mkdir echo1
+
+[devops@workstation ~]$ cd echo1/
+
+[devops@workstation echo1]$ vim Containerfile
+
+FROM registry.redhat.io/ubi8:latest
+ENTRYPOINT ["/usr/bin/echo", "Hello World!"]
+----
+
+
+Now, try and build this:
+
+[source,bash]
+----
+[devops@workstation echo1]$ podman build -t mytest:1.0 .
+STEP 1/2: FROM registry.redhat.io/ubi8:latest
+Trying to pull registry.redhat.io/ubi8:latest...
+Error: error creating build container: initializing source docker://registry.redhat.io/ubi8:latest: unable to retrieve auth token: invalid username/password: unauthorized: Please login to the Red Hat Registry using your Customer Portal credentials. Further instructions can be found here: https://access.redhat.com/RegistryAuthentication
+----
+
+Logging into `registry.redhat.io` will satisfy the authentication requirements when working with `registry.redhat.io`.
+
+[source,bash]
+[devops@workstation ~]$ podman login -u rhn-support-ablum registry.redhat.io
+Password:
+Login Succeeded!
+[devops@workstation ~]$
+----
+
+But, consider that the credentials are being cached in a non-standard location.
+
+From `man podman-login`:
+
+[quote]
+____
+The default path for reading and writing credentials is `${XDG_RUNTIME_DIR}/containers/auth.json`
+____
+
+But in our example here, the `auth.json` does not exist with this path:
+
+[source,bash]
+----
+[devops@workstation ~]$ cat ${XDG_RUNTIME_DIR}/containers/auth.json
+cat: /containers/auth.json: No such file or directory
+
+[devops@workstation ~]$ echo ${XDG_RUNTIME_DIR}
+
+[devops@workstation ~]$
+----
+
+Why? `${XDG_RUNTIME_DIR}` was not set.  This environment variable is set via `pam_systemd`:
+
+From `man pam_systemd`:
+
+[quote]
+____
+On login, this module — in conjunction with systemd-logind.service — ensures the following:
+
+ 1. If it does not exist yet, the user runtime directory /run/user/$UID is either created or mounted as new "tmpfs" file system with quota
+    applied, and its ownership changed to the user that is logging in.
+
+ 2. The $XDG_SESSION_ID environment variable is initialized. If auditing is available and pam_loginuid.so was run before this module (which
+    is highly recommended), the variable is initialized from the auditing session id (/proc/self/sessionid). Otherwise, an independent
+    session counter is used.””
+____
+
+In our case, `podman login` will write to `/tmp` specifically:
+
+[source,bash]
+----
+[devops@workstation ~]$ ls /tmp/podman-run-1001/containers/auth.json
+/tmp/podman-run-1001/containers/auth.json
+----
+
+A better strategy in this case would be to leverage an authfile, one that uses a service account ( https://access.redhat.com/terms-based-registry/ )
+
+First login into  https://access.redhat.com/terms-based-registry/ and navigate to your service account.
+
+Click on the tab *Docker Configuration*:
+
+image::docker-config.png[]
+
+Click *view its contents*.  You will see the authfile contents in your browser.  Paste those into `~/.docker/config.json`:
+
+[source,bash]
+----
+[devops@workstation ~]$ mkdir ~/.docker
+[devops@workstation ~]$ vim ~/.docker/config.json
+{
+  "auths": {
+    "registry.redhat.io": {
+      "auth": "MTk.......SNIP......Q=="
+    }
+  }
+}
+
+----
+
+It is now possible to run the `podman build` using this authfile.
+
+[source,bash]
+----
+[devops@workstation echo1]$ podman build -t mytest:1.0 .
+STEP 1/2: FROM registry.redhat.io/ubi8:latest
+Trying to pull registry.redhat.io/ubi8:latest...
+...SNIP...
+Writing manifest to image destination
+Storing signatures
+STEP 2/2: ENTRYPOINT ["/usr/bin/echo", "Hello World!"]
+COMMIT mytest:1.0
+--> 558683ae8b3
+Successfully tagged localhost/mytest:1.0
+558683ae8b33168e0b10a4abb79245aedee8e6e4c3c317099c37d454945365b3
+
+[devops@workstation echo1]$ podman run mytest:1.0
+Hello World!
+----
+
+Alternatively you can leverage the `--authfile` option to specify a different path as required by your build environment.
+
+[source,bash]
+----
+[devops@workstation echo1]$ podman build -t mytest:1.0 --authfile ~/.docker/config.json .
+STEP 1/2: FROM registry.redhat.io/ubi8:latest
+Trying to pull registry.redhat.io/ubi8:latest...
+...SNIP...
+----

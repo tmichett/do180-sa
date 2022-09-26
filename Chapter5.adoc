@@ -19,7 +19,7 @@ ifdef::env-github[]
 endif::[]
 :imagesdir: ./images/
 
-==  <CHAPTER TITLE>
+==  Chapter 5: Creating Custom Container Images
 
 :sectnums:
 include::Chapters/CH5/BuildingCustomContainerImages.adoc[]

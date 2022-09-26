@@ -19,7 +19,7 @@ ifdef::env-github[]
 endif::[]
 :imagesdir: ./images/
 
-== Chapter 4: Managing Container Images
+==  Chapter 4: Managing Container Images
 
 :sectnums:
 

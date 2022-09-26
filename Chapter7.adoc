@@ -22,4 +22,4 @@ endif::[]
 ==  <CHAPTER TITLE>
 
 :sectnums:
-include::Chapters/CH1/Section1.adoc[]
+include::Chapters/CH7/Section_Sample.adoc[]

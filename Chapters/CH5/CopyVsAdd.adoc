@@ -20,4 +20,204 @@ endif::[]
 :imagesdir: ./images/
 
 
-=== 
+=== COPY vs ADD
+
+. They both add files to the container filesystem
+. COPY only copies local files,
+. ADD can "copy" plus decompress .tar or retrieve files from a URL
+
+To investigate `COPY` further, create a new working directory along with a new file called `important`:
+
+[source,bash]
+----
+[student@workstation ~]$ mkdir mycat
+
+[student@workstation ~]$ cd mycat
+
+[student@workstation mycat]$ echo "helloworld" > important
+----
+
+Now, create a `Containerfile` using the `COPY` instruction to copy the `important` file from the host/build system into the container image:
+
+[source,bash]
+----
+[student@workstation mycat]$ vim Containerfile
+FROM registry.redhat.io/ubi8:latest
+ENTRYPOINT ["/bin/cat"]
+COPY important /tmp
+----
+
+Build a new image using this `Containerfile`:
+
+[source,bash]
+----
+[student@workstation mycat]$ podman build -t ubi8:mycat1 .
+STEP 1/3: FROM registry.redhat.io/ubi8:latest
+STEP 2/3: ENTRYPOINT ["/bin/cat"]
+--> c39def794fb
+STEP 3/3: COPY important /tmp
+COMMIT ubi8:mycat1
+--> baa30df71dc
+Successfully tagged localhost/ubi8:mycat1
+baa30df71dcff5da36a37aaee1175693f219d1c11ea686c23bef515944745b61
+----
+
+To test, run this image passing the file `/tmp/important` to the `/bin/cat` ENTRYPOINT:
+
+[source,bash]
+----
+[student@workstation mycat]$ podman run ubi8:mycat1 /tmp/important
+helloworld
+----
+
+Now, lets try and use `ADD` instead of `COPY`
+
+[source,bash]
+----
+[student@workstation mycat]$ vim Containerfile
+
+FROM registry.redhat.io/ubi8:latest
+ENTRYPOINT ["/bin/cat"]
+ADD important /tmp
+----
+
+Build and test as `ubi8:mycat2`:
+
+[source,bash]
+----
+[student@workstation mycat]$ podman build -t ubi8:mycat2 .
+[student@workstation mycat]$  podman run ubi8:mycat2 /tmp/important
+helloworld
+----
+
+No real difference in the result.  `ADD` has more features than `COPY` however.
+Try creating a `tar` file using the `important` file:
+
+[source,bash]
+----
+[student@workstation mycat]$ tar cvf important.tar important
+important
+[student@workstation mycat]$ rm important
+[student@workstation mycat]$ ls
+Containerfile  important.tar
+----
+
+Now, update the `Containerfile` to `ADD` this tarball `important.tar`:
+
+[source,bash]
+----
+[student@workstation mycat]$ vim Containerfile
+
+FROM registry.redhat.io/ubi8:latest
+ENTRYPOINT ["/bin/cat"]
+ADD important.tar /tmp
+----
+
+Build and test as before:
+
+[source,bash]
+----
+[student@workstation mycat]$ podman build -t ubi8:mycat3 .
+
+[student@workstation mycat]$ podman run ubi8:mycat3 /tmp/important
+helloworld
+----
+
+`ADD` can also be used to inject content from a URL (ie similar to a wget)
+
+=== What file permissions are used with ADD and COPY?
+
+Watch out for file permissions when injecting files or archives via `ADD` or `COPY`.
+Consider this example:
+
+[source,bash]
+----
+[student@workstation mycat]$ vim Containerfile
+
+FROM registry.redhat.io/ubi8:latest
+ENTRYPOINT ["/bin/cat"]
+RUN useradd test1
+RUN useradd test2
+RUN useradd foo
+ADD ./important.tar /tmp/
+USER foo
+----
+
+Next, build and test:
+
+[source,bash]
+----
+[student@workstation mycat]$ podman build -t ubi8:mycat4 .
+
+[student@workstation mycat]$ podman run ubi8:mycat4 /tmp/important
+helloworld
+----
+
+Looks good.
+
+Look closer at who actually owns the file `/tmp/important` injected with `ADD`:
+
+[source,bash]
+----
+[student@workstation mycat]$ podman run -it --entrypoint /bin/bash  ubi8:mycat4
+[foo@daa59a55ff75 /]$ whoami
+foo
+[foo@daa59a55ff75 /]$ id
+uid=1002(foo) gid=1002(foo) groups=1002(foo)
+
+[foo@daa59a55ff75 /]$ ls -l /tmp/important
+-rw-rw-r--. 1 test1 test1 11 Sep 26 18:59 /tmp/important
+----
+
+Can the `foo` user modify `/tmp/imporant` ?
+
+[source,bash]
+----
+[student@workstation mycat]$ podman run -it --entrypoint /bin/bash  ubi8:mycat4
+
+[foo@daa59a55ff75 /]$ echo update >> /tmp/important
+bash: /tmp/important: Permission denied
+----
+
+This can create real problems for an application.  Care with file permissions needs to be taken when using `COPY` or `ADD`.
+
+Fix this issue by adding a `chown`.  But, where should you add it?
+
+After the `USER` instruction?
+
+[source,bash]
+----
+FROM registry.redhat.io/ubi8:latest
+ENTRYPOINT ["/bin/cat"]
+RUN useradd test1
+RUN useradd test2
+RUN useradd foo
+ADD ./important.tar /tmp/
+USER foo
+RUN chown foo:foo /tmp/important
+----
+
+Or before the `USER` instruction?
+
+[source,bash]
+----
+FROM registry.redhat.io/ubi8:latest
+ENTRYPOINT ["/bin/cat"]
+RUN useradd test1
+RUN useradd test2
+RUN useradd foo
+ADD ./important.tar /tmp/
+RUN chown foo:foo /tmp/important
+USER foo
+----
+
+The order does matter in this case.  When the `chown` appears after the `USER` instruction, the `podman build` will fail with the message:
+
+[source,bash]
+----
+STEP 8/8: RUN chown foo:foo /tmp/important
+chown: changing ownership of '/tmp/important': Operation not permitted
+Error: error building at STEP "RUN chown foo:foo /tmp/important": error while running runtime: exit status 1
+----
+
+Testing with the `chown` before the `USER` instruction will successfully build in this case.

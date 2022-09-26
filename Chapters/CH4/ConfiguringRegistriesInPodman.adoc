@@ -40,7 +40,7 @@ Using the newer podman v2 configuration format:
 [student@workstation ~]$ sudo vi /etc/containers/registries.conf
 unqualified-search-registries = ["registry.access.redhat.com", "registry.redhat.io", "quay.io"]
 
-[[registry]]
+\[[registry]]
 prefix = "quay.io"
 location = "quay.io"
 insecure = false
@@ -67,7 +67,7 @@ It’s also possible to block registries from a particular namespace.  For this,
 ----
 unqualified-search-registries = ["registry.access.redhat.com", "registry.redhat.io", "quay.io"]
 
-[[registry]]
+\[[registry]]
 location = "quay.io/ajblum"
 insecure = false
 blocked = true

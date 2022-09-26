@@ -138,7 +138,7 @@ Hello world! -ne foo
 foo[student@workstation echo]$
 ----
 
-Notice how the extra command arguments are echo'd on the terminal with `echo1`.
-While `echo2` is passing those arguments to the echo command.
+Notice how the extra command arguments are echo'd on the terminal with `echo1`.  This is probably not what you wanted.
+Instead, with `echo2`, the `-ne` arguments influence the behavior of the echo command (ie suppressing newline). 
 
 A container developer can influence the runtime with simple choices like what to include in ENTRYPOINT and CMD.  Taken together, ENTRYPOINT + CMD, will be the process run in isolation.

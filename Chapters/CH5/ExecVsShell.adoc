@@ -20,4 +20,163 @@ endif::[]
 :imagesdir: ./images/
 
 
-=== 
+=== Exec vs Shell
+
+*ENTRYPOINT* and *CMD* instructions allow two different syntax:
+
+_Exec_
+
+[source,bash]
+----
+# Executable form
+ENTRYPOINT ["executable", "param1", "param2"]
+----
+
+_Shell_
+[source,bash]
+----
+# the command is run in a shell - /bin/sh -c
+ENTRYPIOINT <command>
+----
+
+To better understand how that affects the runtime, create the following Containerfile:
+
+[source,bash]
+----
+
+[student@workstation echo]$ vim Containerfile
+FROM registry.redhat.io/ubi8:latest
+ENV FOO "Hello World!"
+ENTRYPOINT ["/usr/bin/echo","$FOO"]
+
+----
+
+The intent of this Containerfile is to build a container image that will `echo` the string "Hello World!" on the terminal when run.
+
+Build this into an image and give it a try:
+
+[source,bash]
+----
+[student@workstation echo]$ podman build -t ubi8:echo3 .
+STEP 1/3: FROM registry.redhat.io/ubi8:latest
+STEP 2/3: ENV FOO "Hello World!"
+--> 7fde4a72da5
+STEP 3/3: ENTRYPOINT ["/usr/bin/echo","$FOO"]
+COMMIT ubi8:echo3
+--> 3676c6dbf81
+Successfully tagged localhost/ubi8:echo3
+3676c6dbf81088a5a8a04646207bf255ac51e142c03729a7922ccac4470ca7d1
+
+[student@workstation echo]$ podman run ubi8:echo3
+$FOO
+----
+
+Did it do what we were expecting ?  Why not ?
+Let’s override the entrypoint and verify the environment variable `FOO` has a value set equal to "Hello World!"
+
+[source,bash]
+----
+[student@workstation echo]$ podman run --entrypoint "env" ubi8:echo3
+FOO=Hello World!
+----
+
+Yes. Looks good.  Yet, the value of `$FOO` is not being evaluated before passing it to the `/usr/bin/echo` command.
+
+The form used in this example is *Exec* form.  With exec form, the entrypoint executable isn’t run inside a shell.  Environment variables are available for use inside a shell.  So, let’s change to use the shell form and observe the behavior:
+
+
+[source,bash]
+----
+[student@workstation echo]$ vim Containerfile
+FROM registry.redhat.io/ubi8:latest
+ENV FOO "Hello World!"
+ENTRYPOINT /usr/bin/echo $FOO
+
+[student@workstation echo]$ podman build -t ubi8:echo4 .
+
+[student@workstation echo]$ podman run ubi8:echo4
+Hello World!
+----
+
+Compare the Entrypoint set in the metadata for each of these two container images:
+
+[source,bash]
+----
+[student@workstation echo]$ podman inspect ubi8:echo3 --format '{{.Config.Entrypoint}}'
+[/usr/bin/echo $FOO]
+[student@workstation echo]$ podman inspect ubi8:echo4 --format '{{.Config.Entrypoint}}'
+[/bin/sh -c /usr/bin/echo $FOO]
+----
+
+Notice how `ubi8:echo4` has the `/usr/bin/echo $FOO` wrapped in a shell.  The shell `/bin/sh` evaluates the `$FOO` variable before passing to `/usr/bin/echo`.  This is why `ubi8:echo4` produces the result we expected.  This is also why it is known as the *shell* format.
+
+
+
+
+
+[root@workstation echo1]# podman ps -a --no-trunc
+CONTAINER ID                                                       IMAGE                     COMMAND                                    CREATED              STATUS                          PORTS   NAMES                    IS INFRA
+173d53f94eb8b48149407456512800f27355c925302e9ce9bba789e5d501ea9a   localhost/rhel7:echo1.4   /bin/sh -c /usr/bin/echo $FOO              About a minute ago   Exited (0) About a minute ago           nifty_mccarthy           false
+
+Notice how the entrypoint is wrapped with /bin/sh -c “   “.  This allows the shell to expand the variable with the Hello World! string.
+
+Also, now lets see what happens when we pass cmd arguments to the podman run:
+
+[root@workstation echo1]# podman run rhel7:echo1.3 whoot
+Hello World!
+[root@workstation echo1]# podman run rhel7:echo1.3 -ne
+Hello World!
+
+Notice how the CMD is ignored here when using the shell form for entrypoint
+
+=== What is preferred exec or shell form?
+
+_shell_ form is helpful for some applications that are not capable of sourcing in environment variables on their own.  Additionally, _shell_  form prevents any CMD from affecting the way the entrypoint runs.  For example,
+
+[source,bash]
+----
+[student@workstation echo]$ podman inspect ubi8:echo4 --format '{{.Config.Entrypoint}}'
+[/bin/sh -c /usr/bin/echo $FOO]
+
+[student@workstation echo]$ podman run ubi8:echo4 adshfjdkljsf
+Hello World!
+----
+
+Remember `podman stop`?  If you are using the shell form, the shell is sent a SIGTERM after `podman stop`.  That signal is then passed down to the child process of the shell.  With exec form, the containerized process receives the signal directly.  It is for this reason _exec_ preferred in most cases.
+
+Many containers are built with unique shell scrips (ie wrapper or init scripts) that will `exec` the application after setting up the runtime environment.  The
+
+A good example of an image built this way is the Apache daemon from Red Hat Software Collections.  Pull and inspect it:
+
+[source,bash]
+----
+[student@workstation echo]$ podman pull registry.access.redhat.com/rhscl/httpd-24-rhel7:latest
+Trying to pull registry.access.redhat.com/rhscl/httpd-24-rhel7:latest...
+
+[student@workstation echo]$ podman inspect registry.access.redhat.com/rhscl/httpd-24-rhel7:latest --format '{{.Config.Entrypoint}}'
+[container-entrypoint]
+[student@workstation echo]$ podman inspect registry.access.redhat.com/rhscl/httpd-24-rhel7:latest --format '{{.Config.Cmd}}'
+[/usr/bin/run-httpd]
+----
+
+Now execute it with an interactive shell:
+
+[source,bash]
+----
+[student@workstation echo]$ podman run -it --entrypoint /bin/bash registry.access.redhat.com/rhscl/httpd-24-rhel7:latest
+
+bash-4.2$ which container-entrypoint
+/usr/bin/container-entrypoint
+
+bash-4.2$ cat /usr/bin/container-entrypoint
+#!/bin/bash
+exec "$@"
+
+
+bash-4.2$ tail -3 /usr/bin/run-httpd
+process_extending_files ${HTTPD_APP_ROOT}/src/httpd-pre-init/ ${HTTPD_CONTAINER_SCRIPTS_PATH}/pre-init/
+
+exec httpd -D FOREGROUND $@
+----
+
+In this case, `rhscl/httpd-24-rhel7:latest` is using the _exec_ form executing wrapper scripts that include the `exec` bash built-in command.

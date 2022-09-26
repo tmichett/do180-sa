@@ -129,7 +129,7 @@ Hello World!
 
 Notice how the CMD is ignored here when using the shell form for entrypoint
 
-=== What is preferred exec or shell form?
+=== Which is preferred, exec or shell form?
 
 _shell_ form is helpful for some applications that are not capable of sourcing in environment variables on their own.  Additionally, _shell_  form prevents any CMD from affecting the way the entrypoint runs.  For example,
 
@@ -142,7 +142,7 @@ _shell_ form is helpful for some applications that are not capable of sourcing i
 Hello World!
 ----
 
-Remember `podman stop`?  If you are using the shell form, the shell is sent a SIGTERM after `podman stop`.  That signal is then passed down to the child process of the shell.  With exec form, the containerized process receives the signal directly.  It is for this reason _exec_ preferred in most cases.
+Remember `podman stop`?  If you are using the _shell_ form, the shell is sent a SIGTERM after `podman stop`.  That signal is then passed down to the child process of the shell.  With _exec_ form, the containerized process receives the signal directly.  It is for this reason _exec_ preferred in most cases.
 
 Many containers are built with unique shell scrips (ie wrapper or init scripts) that will `exec` the application after setting up the runtime environment.  The
 
@@ -159,7 +159,7 @@ Trying to pull registry.access.redhat.com/rhscl/httpd-24-rhel7:latest...
 [/usr/bin/run-httpd]
 ----
 
-Now execute it with an interactive shell:
+Notice the _exec_ form used for both the ENTRYPOINT and CMD.  Now execute it with an interactive shell:
 
 [source,bash]
 ----
@@ -180,3 +180,4 @@ exec httpd -D FOREGROUND $@
 ----
 
 In this case, `rhscl/httpd-24-rhel7:latest` is using the _exec_ form executing wrapper scripts that include the `exec` bash built-in command.
+If you use the _exec_ form this is a great way to do it.  Just remember to use the `exec` commands in your wrapper scripts.

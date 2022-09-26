@@ -101,12 +101,7 @@ From `man pam_systemd`:
 ____
 On login, this module — in conjunction with systemd-logind.service — ensures the following:
 
- 1. If it does not exist yet, the user runtime directory /run/user/$UID is either created or mounted as new "tmpfs" file system with quota
-    applied, and its ownership changed to the user that is logging in.
-
- 2. The $XDG_SESSION_ID environment variable is initialized. If auditing is available and pam_loginuid.so was run before this module (which
-    is highly recommended), the variable is initialized from the auditing session id (/proc/self/sessionid). Otherwise, an independent
-    session counter is used.””
+If it does not exist yet, the user runtime directory /run/user/$UID is either created or mounted as new "tmpfs" file system with quota applied, and its ownership changed to the user that is logging in.
 ____
 
 In our case, `podman login` will write to `/tmp` specifically:

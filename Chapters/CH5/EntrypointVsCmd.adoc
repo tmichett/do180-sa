@@ -20,4 +20,119 @@ endif::[]
 :imagesdir: ./images/
 
 
-=== 
+=== ENTRYPOINT vs CMD
+
+Understanding this with example:
+
+[source,bash]
+----
+[student@workstation ~]# mkdir echo
+
+[student@workstation ~]# cd echo
+
+[student@workstation echo]# vim Containerfile
+FROM registry.redhat.io/ubi8:latest
+ENTRYPOINT ["/usr/bin/echo", "Hello world!"]
+---
+
+To build this container run the following `podman build` command:
+
+[source,bash]
+----
+[student@workstation echo]# podman build -t ubi8:echo1 .
+----
+
+Test the newly built container by running with:
+
+[source,bash]
+----
+[student@workstation echo]# podman run ubi8:echo1
+Hello world!
+----
+
+The image metadata for the newly built container includes the `Entrypoint` key, but no Cmd:
+
+[source,bash]
+----
+[student@workstation echo1]$ podman inspect ubi8:echo1 --format '{{.Config.Entrypoint}}'
+[/usr/bin/echo Hello world!]
+
+[student@workstation echo1]$ podman inspect ubi8:echo1 --format '{{.Config.Cmd}}'
+[]
+----
+
+Now, lets add in a CMD instruction.  Move the `Hello world!` string from the `ENTRYPOINT` into the `CMD` instruction like:
+
+[source,bash]
+----
+[student@workstation echo]$ vim Containerfile
+
+FROM registry.redhat.io/ubi8:latest
+ENTRYPOINT ["/usr/bin/echo"]
+CMD ["Hello world!"]
+----
+
+Build and run this container with the following:
+
+[source,bash]
+----
+[student@workstation echo]$  podman build -t ubi8:echo2 .
+STEP 1/3: FROM registry.redhat.io/ubi8:latest
+STEP 2/3: ENTRYPOINT ["/usr/bin/echo"]
+--> d46473bb34f
+STEP 3/3: CMD ["Hello world!"]
+COMMIT ubi8:echo2
+--> d4c6395eb2f
+Successfully tagged localhost/ubi8:echo2
+d4c6395eb2ff76a8f78461d201d7867054ae8e422cd7a862b456ac547e5c5319
+
+[student@workstation echo]$ podman run ubi8:echo2
+Hello world!
+----
+
+Use `podman inspect` to verify the Entrypoint and Cmd in the `ubi8:echo2` metadata:
+
+[source,bash]
+----
+[student@workstation echo]$  podman inspect ubi8:echo2 --format '{{.Config.Entrypoint}}'
+[/usr/bin/echo]
+[student@workstation echo]$  podman inspect ubi8:echo2 --format '{{.Config.Cmd}}'
+[Hello world!]
+----
+
+Compare execution using `ubi8:echo1` with `ubi8:echo2`
+
+[source,bash]
+----
+[student@workstation echo]$ podman run ubi8:echo1
+Hello world!
+[student@workstation echo]$ podman run ubi8:echo2
+Hello world!
+----
+
+No noticeable difference.
+
+To highlight the difference, override the CMD built in the image when running these two:
+
+[source,bash]
+----
+[student@workstation echo]$ podman run ubi8:echo1 foo
+Hello world! foo
+[student@workstation echo]$ podman run ubi8:echo2 foo
+foo
+----
+
+Try to use some command line options supported by the `echo` command:
+
+[source,bash]
+----
+[student@workstation echo]$ podman run ubi8:echo1 -ne foo
+Hello world! -ne foo
+[student@workstation echo]$ podman run ubi8:echo2 -ne foo
+foo[student@workstation echo]$
+----
+
+Notice how the extra command arguments are echo'd on the terminal with `echo1`.
+While `echo2` is passing those arguments to the echo command.
+
+A container developer can influence the runtime with simple choices like what to include in ENTRYPOINT and CMD.  Taken together, ENTRYPOINT + CMD, will be the process run in isolation.

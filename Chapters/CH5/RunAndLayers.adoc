@@ -333,56 +333,81 @@ All the data in this case is in the image’s UpperDir which will become a uniqu
 
 === How can you use "OR" logic instead of "AND" logic like the &&
 
-[root@workstation ~]#
-[root@workstation ~]# mkdir test1
-[root@workstation ~]# cd test1/
-[root@workstation test1]# vim Dockerfile
-FROM rhel7
+Try creating a `Containerfile` that includes `RUN` instructions with both `&&` and `||` operators:
+
+[source,bash]
+----
+[student@workstation ~]$ mkdir test1
+[student@workstation ~]$ cd test1/
+[student@workstation test1]$ vim Containerfile
+
+FROM registry.redhat.io/ubi8:latest
 ENTRYPOINT ["/usr/bin/ls"]
 RUN touch /var/tmp/test1 && touch /var/tmp/test2
 RUN touch /var/tmp/foo/bar/test3 || touch /var/tmp/test3
-[root@workstation test1]# podman build -t myls:1.0 .
-STEP 1: FROM rhel7
-Getting image source signatures
-Skipping fetch of repeat blob sha256:00f17e0b37b0515380a4aece3cb72086c0356fc780ef4526f75476bea36a2c8b
-Skipping fetch of repeat blob sha256:305d73a95c8fece2b53a34e040df1c97eb6b7f7cc4e0a7933465f0b7325e3d72
-Copying config sha256:55a1f4beaf8e2d27982b38e3ecfd458c66753cbfd3a09bcf562877fe60255157
- 6.44 KB / 6.44 KB [========================================================] 0s
-Writing manifest to image destination
-Storing signatures
-STEP 2: ENTRYPOINT ["/usr/bin/ls"]
-ERRO[0002] HOSTNAME is not supported for OCI image format, hostname 9d3d66a8bfcc will be ignored. Must use `docker` format
---> 9daeef6d672b0d61990b3ce73a025ae19437d52bee563bbeb45be9527bd6eeb7
-STEP 3: FROM 9daeef6d672b0d61990b3ce73a025ae19437d52bee563bbeb45be9527bd6eeb7
-STEP 4: RUN touch /var/tmp/test1 && touch /var/tmp/test2
---> 71900ead142213818c31b3a2c5f8e0b65c3d118cc36a93f5ef73ce977e0baac7
-STEP 5: FROM 71900ead142213818c31b3a2c5f8e0b65c3d118cc36a93f5ef73ce977e0baac7
-STEP 6: RUN touch /var/tmp/foo/bar/test3 || touch /var/tmp/test3
-touch: cannot touch '/var/tmp/foo/bar/test3': No such file or directory
---> b8d4bad38f669d1031fff9719daede8998fd0404b3ec03d686ea671b2caf3400
-STEP 7: COMMIT myls:1.0
+----
 
-[root@workstation ~]# podman run myls:1.0 /var/tmp
+In the last `RUN` instruction above, the first `touch` command should fail since the directory `/var/tmp/foo/bar/` does not exist.
+Because of this failure the build environment will `touch /var/tmp/test3` instead.
+
+Build with:
+
+[source,bash]
+----
+
+[student@workstation test1]$ podman build -t ubi8:test1 .
+STEP 1/4: FROM registry.redhat.io/ubi8:latest
+STEP 2/4: ENTRYPOINT ["/usr/bin/ls"]
+--> Using cache f0a1e9e7e7a732331c73192ace30d511bd0d184187b3334fc605b98301fd299c
+--> f0a1e9e7e7a
+STEP 3/4: RUN touch /var/tmp/test1 && touch /var/tmp/test2
+--> c64767dfee3
+STEP 4/4: RUN touch /var/tmp/foo/bar/test3 || touch /var/tmp/test3
+touch: cannot touch '/var/tmp/foo/bar/test3': No such file or directory
+COMMIT ubi8:test1
+--> 4c7e6b63a4a
+Successfully tagged localhost/ubi8:test1
+4c7e6b63a4aaf25e858f60869694c18827eea437c670d23faa1e027c3f4a53e9
+----
+
+Notice the failure `touch: cannot touch '/var/tmp/foo/bar/test3': No such file or directory`.  Normally, this would be fatal for `podman build`.
+In this case, however, `STEP 4/4` is able to continue with the `||` operator.
+
+Check the resulting image with:
+
+[source,bash]
+----
+[student@workstation test1]$ podman run ubi8:test1 /var/tmp
 test1
 test2
 test3
 
-Now, try with &&:
+[student@workstation test1]$ podman run ubi8:test1 /var/tmp/foo/bar
+ls: cannot access '/var/tmp/foo/bar': No such file or directory
+----
 
-[root@workstation test2]# vim Dockerfile
-FROM rhel7
+Try again using `&&`:
+
+[source,bash]
+----
+[student@workstation test1]$ vim Containerfile
+
+FROM registry.redhat.io/ubi8:latest
 ENTRYPOINT ["/usr/bin/ls"]
 RUN touch /var/tmp/test1 && touch /var/tmp/test2
 RUN touch /var/tmp/foo/bar/test3 && touch /var/tmp/test3
 
-[root@workstation test2]# podman build -t myls:2.0 .
-STEP 1: FROM rhel7
-STEP 2: ENTRYPOINT ["/usr/bin/ls"]
---> Using cache 9daeef6d672b0d61990b3ce73a025ae19437d52bee563bbeb45be9527bd6eeb7
-STEP 3: FROM 9daeef6d672b0d61990b3ce73a025ae19437d52bee563bbeb45be9527bd6eeb7
-STEP 4: RUN touch /var/tmp/test1 && touch /var/tmp/test2
---> Using cache 71900ead142213818c31b3a2c5f8e0b65c3d118cc36a93f5ef73ce977e0baac7
-STEP 5: FROM 71900ead142213818c31b3a2c5f8e0b65c3d118cc36a93f5ef73ce977e0baac7
-STEP 6: RUN touch /var/tmp/foo/bar/test3 && touch /var/tmp/test3
+[student@workstation test1]$ podman build -t ubi8:test2 .
+STEP 1/4: FROM registry.redhat.io/ubi8:latest
+STEP 2/4: ENTRYPOINT ["/usr/bin/ls"]
+--> Using cache f0a1e9e7e7a732331c73192ace30d511bd0d184187b3334fc605b98301fd299c
+--> f0a1e9e7e7a
+STEP 3/4: RUN touch /var/tmp/test1 && touch /var/tmp/test2
+--> Using cache c64767dfee3b820e505c49f9698e6e4c8a29422e3377aec817870370bd32b34f
+--> c64767dfee3
+STEP 4/4: RUN touch /var/tmp/foo/bar/test3 && touch /var/tmp/test3
 touch: cannot touch '/var/tmp/foo/bar/test3': No such file or directory
-error building at step {Env:[PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin container=oci] Command:run Args:[touch /var/tmp/foo/bar/test3 && touch /var/tmp/test3] Flags:[] Attrs:map[] Message:RUN touch /var/tmp/foo/bar/test3 && touch /var/tmp/test3 Original:RUN touch /var/tmp/foo/bar/test3 && touch /var/tmp/test3}: error while running runtime: exit status 1
+Error: error building at STEP "RUN touch /var/tmp/foo/bar/test3 && touch /var/tmp/test3": error while running runtime: exit stat
+----
+
+This failure is fatal and no image is built as a result.

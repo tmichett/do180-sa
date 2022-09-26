@@ -112,23 +112,6 @@ Notice how `ubi8:echo4` has the `/usr/bin/echo $FOO` wrapped in a shell.  The sh
 
 
 
-
-
-[root@workstation echo1]# podman ps -a --no-trunc
-CONTAINER ID                                                       IMAGE                     COMMAND                                    CREATED              STATUS                          PORTS   NAMES                    IS INFRA
-173d53f94eb8b48149407456512800f27355c925302e9ce9bba789e5d501ea9a   localhost/rhel7:echo1.4   /bin/sh -c /usr/bin/echo $FOO              About a minute ago   Exited (0) About a minute ago           nifty_mccarthy           false
-
-Notice how the entrypoint is wrapped with /bin/sh -c “   “.  This allows the shell to expand the variable with the Hello World! string.
-
-Also, now lets see what happens when we pass cmd arguments to the podman run:
-
-[root@workstation echo1]# podman run rhel7:echo1.3 whoot
-Hello World!
-[root@workstation echo1]# podman run rhel7:echo1.3 -ne
-Hello World!
-
-Notice how the CMD is ignored here when using the shell form for entrypoint
-
 === Which is preferred, exec or shell form?
 
 _shell_ form is helpful for some applications that are not capable of sourcing in environment variables on their own.  Additionally, _shell_  form prevents any CMD from affecting the way the entrypoint runs.  For example,

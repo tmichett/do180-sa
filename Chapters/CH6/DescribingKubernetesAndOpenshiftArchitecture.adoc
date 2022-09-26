@@ -19,13 +19,5 @@ ifdef::env-github[]
 endif::[]
 :imagesdir: ./images/
 
-==  Chapter 6: Deploying Containerized Applications on Openshift
 
-:sectnums:
-include::Chapters/CH6/DescribingKubernetesAndOpenshiftArchitecture.adoc[]
-
-include::Chapters/CH6/CreatingKubernetesResources.adoc[]
-
-include::Chapters/CH6/CreatingApplicationsWithSourceToImage.adoc[]
-
-include::Chapters/CH6/CreatingApplicationsWithTheOpenshiftWebConsole.adoc[]
+=== 

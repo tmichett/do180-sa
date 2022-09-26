@@ -22,7 +22,13 @@ endif::[]
 
 === ENTRYPOINT vs CMD
 
-Understanding this with example:
+From `man 5 Contianerfile` in Fedora:
+
+_ENTRYPOINT_ = An ENTRYPOINT helps you configure a container that can be run as an executable. When you specify an ENTRYPOINT, the whole container runs as if it was only that executable.
+
+_CMD_ = The main purpose of a CMD is to provide defaults for an executing container. These defaults may include an executable, or they can omit the executable.
+
+It is best to understand the relationship between these with examples.  First, create the following *Hello World* `Contianerfile`:
 
 [source,bash]
 ----

@@ -229,7 +229,7 @@ localhost/ubi8                           latest      10f854072e7e  2 weeks ago  
 registry.redhat.io/ubi8                  latest      10f854072e7e  2 weeks ago  227 MB
 ----
 
-In this case, these images were copied from Red Hat's container registry.  Red Hat signs the containers it distributes so that any system can verify the containers came from Red Hat.
+In this case, these images were copied from Red Hat\'s container registry.  Red Hat signs the containers it distributes so that any system can verify the containers came from Red Hat.
 
 `podman` and `skopeo` will use the image trust configured in `/etc/containers/policy.json`
 

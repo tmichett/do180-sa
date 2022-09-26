@@ -31,7 +31,7 @@ Image-spec https://github.com/opencontainers/image-spec
 
 This should now be possible because of https://bugzilla.redhat.com/show_bug.cgi?id=1787667
 
-..but you can’t really - https://bugzilla.redhat.com/show_bug.cgi?id=1811098
+*But* you can’t really - https://bugzilla.redhat.com/show_bug.cgi?id=1811098
 
 Using the newer podman v2 configuration format:
 
@@ -40,7 +40,7 @@ Using the newer podman v2 configuration format:
 [student@workstation ~]$ sudo vi /etc/containers/registries.conf
 unqualified-search-registries = ["registry.access.redhat.com", "registry.redhat.io", "quay.io"]
 
-\[[registry]]
+[[registry]]
 prefix = "quay.io"
 location = "quay.io"
 insecure = false
@@ -299,7 +299,7 @@ Compare to
 We could make a local copy using the tag “2.4-172” but lets try using this digest:
 
 [source,bash]
------
+----
 [student@workstation storage]$ podman pull registry.access.redhat.com/rhscl/httpd-24-rhel7@sha256:ed835f1a45efb7dfd62894274692f494ddbf83d1072019ecafc040574cce5886
 ...SNIP...
 fcea1b0658e6a351aec4119d8c9ee2adb725e151536b98aa8c13d4c6b8e8647b

@@ -27,3 +27,5 @@ include::Chapters/CH3/ContainerLifecycleManagementWithPodman.adoc[]
 include::Chapters/CH3/AttachingPersistentStorageToContainers.aodc[]
 
 include::Chapters/CH3/AccessingContainers.adoc[]
+
+include::Chapters/CH3/MappingNetworkPorts.adoc[]

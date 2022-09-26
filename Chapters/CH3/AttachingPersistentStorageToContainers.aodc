@@ -123,18 +123,13 @@ total 0
 -rw-r--r--. 1 root root 0 Sep 22 10:23 file8
 -rw-r--r--. 1 root root 0 Sep 22 10:23 file9
 
-# modify an existing file
-[root@workstation ~]# echo hello > /data/merged/file9
+[root@workstation ~]# echo hello > /data/merged/file9   # modify an existing file
 
-# remove an existing file
-[root@workstation ~]# rm -f /data/merged/file1
+[root@workstation ~]# rm -f /data/merged/file1          # remove an existing file
 
-# create a new file
-[root@workstation ~]# touch /data/merged/file11
+[root@workstation ~]# touch /data/merged/file11         # create a new file
 
-# create a new directory
-[root@workstation ~]# mkdir /data/merged/dir1
-[root@workstation ~]#
+[root@workstation ~]# mkdir /data/merged/dir1           # create a new directory
 ----
 
 All of these operations seem to work, lets confirm in `/data/merged`:
@@ -425,7 +420,7 @@ No. *volumes* created outside of `podman` will not be removed/pruned.  Try it:
 
 [student@workstation ~]$ podman volume list
 [student@workstation ~]$
----
+----
 
 No volume listed.  This volume was not created with `podman volume`.
 

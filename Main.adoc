@@ -6,9 +6,9 @@ Andrew Blum <ablum@redhat.com>
 :customer:  PFE
 :listing-caption: Listing
 :toc:
-:toclevels: 7
+:toclevels: 8
 :sectnums:
-:sectnumlevels: 6
+:sectnumlevels: 8
 :numbered:
 :chapter-label:
 :pdf-page-size: LETTER

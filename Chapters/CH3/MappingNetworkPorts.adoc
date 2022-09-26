@@ -19,6 +19,7 @@ ifdef::env-github[]
 endif::[]
 :imagesdir: ./images/
 
+
 === How can we connect to a containerized application using the host’s network ?
 
 Ports !
@@ -64,7 +65,7 @@ This network exists within a separate networking namespace from the global one. 
 [source,bash]
 ----
 [student@workstation ~]$ podman unshare findmnt | grep nsfs
-│     └─/run/user/1000/netns/cni-e74fcbb7-b359-3084-eab8-599b903d2647                                                                            nsfs[net:[4026532260]]                                           nsfs                rw,seclabel
+│     └─/run/user/1000/netns/cni-e74fcbb7-b359-3084-eab8-599b903d2647      \nsfs[net:[4026532260]]  nsfs      rw,seclabel
 [student@workstation ~]$ findmnt | grep nsfs
 [student@workstation ~]$
 ----
@@ -74,7 +75,7 @@ Nsfs is a pseudo-filesystem.  See the commit in the kernel here:
 https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=e149ed2b805fefdccf7ccdfc19eca22fdd4514ac
 
 
-NOTE: If run as root, conmon is the listening process
+If run as root, conmon is the listening process
 
 [source,bash]
 ----
@@ -118,7 +119,7 @@ From https://www.redhat.com/sysadmin/podman-new-network-stack
 ____
 Of the new features in Podman v4.0, one of the most important is a new network stack, written from scratch in Rust to support Podman. The new stack is composed of two tools, the Netavark network setup tool and the Aardvark DNS server.
 
-Existing containers in nondefault networks cannot be converted to Netavark, and Netavark doesn't support advanced CNI plugins (for example, connecting to Kubernetes networks created using Flannel). To ensure a smooth transition, we will continue to support CNI with Podman, and existing Podman installations will continue to use CNI for networking.
+Existing containers in nondefault networks cannot be converted to Netavark, and Netavark doesn not support advanced CNI plugins (for example, connecting to Kubernetes networks created using Flannel). To ensure a smooth transition, we will continue to support CNI with Podman, and existing Podman installations will continue to use CNI for networking.
 New installations can opt to use CNI by explicitly specifying it via the containers.conf configuration file, using the network_backend field. CNI and Netavark cannot be used simultaneously in order to avoid conflicts in the configurations the two create.
 ____
 
@@ -130,15 +131,6 @@ What is used currently in DO180 classroom ? CNI see:
 [root@workstation ~]# cat /usr/share/containers/containers.conf
 [network]
 
-# Network backend determines what network driver will be used to set up and tear down container networks.
-# Valid values are "cni" and "netavark".
-# The default value is empty which means that it will automatically choose CNI or netavark. If there are
-# already containers/images or CNI networks preset it will choose CNI.
-#
-# Before changing this value all containers must be stopped otherwise it is likely that
-# iptables rules and network interfaces might leak on the host. A reboot will fix this.
-#
-#network_backend = ""
 network_backend = "cni"
 ----
 

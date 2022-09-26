@@ -39,7 +39,7 @@ It is best to understand the relationship between these with examples.  First, c
 [student@workstation echo]# vim Containerfile
 FROM registry.redhat.io/ubi8:latest
 ENTRYPOINT ["/usr/bin/echo", "Hello world!"]
----
+----
 
 To build this container run the following `podman build` command:
 

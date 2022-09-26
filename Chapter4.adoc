@@ -22,7 +22,6 @@ endif::[]
 ==  Chapter 4: Managing Container Images
 
 :sectnums:
-
 include::Chapters/CH4/ConfiguringRegistriesInPodman.adoc[]
 
 include::Chapters/CH4/RegistryAuthentication.adoc[]

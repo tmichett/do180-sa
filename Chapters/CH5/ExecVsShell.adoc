@@ -82,7 +82,7 @@ FOO=Hello World!
 
 Yes. Looks good.  Yet, the value of `$FOO` is not being evaluated before passing it to the `/usr/bin/echo` command.
 
-The form used in this example is *Exec* form.  With exec form, the entrypoint executable isn’t run inside a shell.  Environment variables are available for use inside a shell.  So, let’s change to use the shell form and observe the behavior:
+The form used in this example is _Exec_ form.  With _exec_ form, the entrypoint executable isn’t run inside a shell.  Environment variables are available for use inside a shell.  So, let’s change to use the shell form and observe the behavior:
 
 
 [source,bash]

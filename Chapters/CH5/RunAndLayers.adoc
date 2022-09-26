@@ -20,4 +20,369 @@ endif::[]
 :imagesdir: ./images/
 
 
-=== 
+=== What impact does the RUN instruction have on Image layers?
+
+To explore this question, create a container image with one RUN instruction like this:
+
+
+[source,bash]
+----
+[student@workstation ~]$ mkdir myls
+
+[student@workstation ~]$ cd myls/
+
+[student@workstation myls]$ vim Containerfile
+
+FROM registry.redhat.io/ubi8:latest
+ENTRYPOINT ["/usr/bin/ls"]
+RUN touch /var/tmp/data
+
+[student@workstation myls]$ podman build -t ubi8:myls1 .
+STEP 1/3: FROM registry.redhat.io/ubi8:latest
+STEP 2/3: ENTRYPOINT ["/usr/bin/ls"]
+--> f0a1e9e7e7a
+STEP 3/3: RUN touch /var/tmp/data
+COMMIT ubi8:myls1
+--> c7fa2956a3a
+Successfully tagged localhost/ubi8:myls1
+c7fa2956a3af3a388ab4a36736ac90aefc03e28ff7fc5e09c40b676720041943
+----
+
+Try running this container image to verify the presence of `/var/tmp/data`:
+
+[source,bash]
+----
+[student@workstation myls]$ podman run ubi8:myls1 /var/tmp/data
+/var/tmp/data
+[student@workstation myls]$ podman run ubi8:myls1 -l /var/tmp/data
+-rw-r--r--. 1 root root 0 Sep 26 17:46 /var/tmp/data
+----
+
+This works because the entrypoint is `/usr/bin/ls` and the command argument was `/var/tmp/data`.  Thus `/usr/bin/ls /var/tmp/data` was executed.
+
+Check the number of LowerDir's defined for this image:
+
+[source,bash]
+----
+[student@workstation myls]$ podman inspect ubi8:myls1 --format '{{.GraphDriver.Data.LowerDir}}'
+/home/student/.local/share/containers/storage/overlay/f4a999c201294a0a171618e413f1ea7628562e96d8ac148e00708e421aee56a8/diff:/home/student/.local/share/containers/storage/overlay/b38cb92596778e2c18c2bde15f229772fe794af39345dd456c3bf6702cc11eef/diff
+[student@workstation myls]$
+----
+
+Two different directories defined in LowerDir for `ubi8:myls1`
+
+Compare that with the original parent image `ubi8:latest`:
+
+[source,bash]
+----
+[student@workstation myls]$ podman inspect ubi8:latest --format '{{.GraphDriver.Data.LowerDir}}'
+/home/student/.local/share/containers/storage/overlay/b38cb92596778e2c18c2bde15f229772fe794af39345dd456c3bf6702cc11eef/diff
+----
+
+Only one here.  So the RUN instruction used in the Containerfile resulted in an extra LowerDir.  Take it to an extreme with:
+
+[source,bash]
+----
+[student@workstation myls]$ vim Containerfile
+
+FROM registry.redhat.io/ubi8:latest
+ENTRYPOINT ["/usr/bin/ls"]
+RUN touch /var/tmp/data0
+RUN touch /var/tmp/data1
+RUN touch /var/tmp/data2
+RUN touch /var/tmp/data3
+RUN touch /var/tmp/data4
+RUN touch /var/tmp/data5
+RUN touch /var/tmp/data6
+
+[student@workstation myls]$ podman build -t ubi8:myls2 .
+...SNIP...
+STEP 9/9: RUN touch /var/tmp/data6
+COMMIT ubi8:myls2
+--> 267e6d287a5
+Successfully tagged localhost/ubi8:myls2
+267e6d287a5a732263c735eb705b546fa8279d2436731038d8607ef163714120
+
+----
+
+Now test the new image `ubi8:myls2` with:
+
+[source,bash]
+----
+[student@workstation myls]$ podman run ubi8:myls2 /var/tmp
+data0
+data1
+data2
+data3
+data4
+data5
+data6
+
+[student@workstation myls]$ podman run ubi8:myls2 -l /var/tmp
+total 0
+-rw-r--r--. 1 root root 0 Sep 26 17:54 data0
+-rw-r--r--. 1 root root 0 Sep 26 17:54 data1
+-rw-r--r--. 1 root root 0 Sep 26 17:54 data2
+-rw-r--r--. 1 root root 0 Sep 26 17:54 data3
+-rw-r--r--. 1 root root 0 Sep 26 17:54 data4
+-rw-r--r--. 1 root root 0 Sep 26 17:54 data5
+-rw-r--r--. 1 root root 0 Sep 26 17:54 data6
+----
+
+Compare the `LowerDir` of `ubi8:myls1` and `ubi8:myls2`:
+
+[source,bash]
+----
+[student@workstation myls]$ podman inspect ubi8:myls1 --format='{{.GraphDriver.Data.LowerDir}}'
+/home/student/.local/share/containers/storage/overlay/f4a999c201294a0a171618e413f1ea7628562e96d8ac148e00708e421aee56a8/diff:/home/student/.local/share/containers/storage/overlay/b38cb92596778e2c18c2bde15f229772fe794af39345dd456c3bf6702cc11eef/diff
+
+[student@workstation myls]$ podman inspect ubi8:myls2 --format='{{.GraphDriver.Data.LowerDir}}'
+/home/student/.local/share/containers/storage/overlay/4a823da36520d215e0dd0e35587d362e9d9716d6f0b9814ca469eaf660632d54/diff:/home/student/.local/share/containers/storage/overlay/069228d3067934f431ac04bd6e9a4013ffbf6fde006f0564d9c5833f04aeab2c/diff:/home/student/.local/share/containers/storage/overlay/89d8628d96cbbaf385203cff30eea10904fac833c0f4d353c59656f4bb9816b9/diff:/home/student/.local/share/containers/storage/overlay/222b495c111adf7dcd498257cf1b83a9d787c768a5a1bc5d737cc282823e3218/diff:/home/student/.local/share/containers/storage/overlay/5046e9430e404340e18e98d254e237b8059de8f67ba1a21d40df78ed23d75cf7/diff:/home/student/.local/share/containers/storage/overlay/d1dfa09a0a9412f5d7f53a91860fca78422ce36d0606abe7492a8f4a8c98bca6/diff:/home/student/.local/share/containers/storage/overlay/f4a999c201294a0a171618e413f1ea7628562e96d8ac148e00708e421aee56a8/diff:/home/student/.local/share/containers/storage/overlay/b38cb92596778e2c18c2bde15f229772fe794af39345dd456c3bf6702cc11eef/diff
+----
+
+*Wow!* Significantly more directories defined in the `LowerDir` for `ubi8:myls2`.
+Each `RUN` instruction introduces more image layers.
+
+To avoid these extra layers, combine `RUN` instructions into one single `RUN` instruction.
+
+To do this, use a shell trick based on the bash `&&` list operator.  From https://www.gnu.org/software/bash/manual/html_node/Lists.html
+
+[quote]
+____
+command1 && command2
+
+command2 is executed if, and only if, command1 returns an exit status of zero (success).
+____
+
+Modify the `Containerfile` with the following:
+
+[source,bash]
+----
+FROM registry.redhat.io/ubi8:latest
+ENTRYPOINT ["/usr/bin/ls"]
+RUN touch /var/tmp/data0 && touch /var/tmp/data1 && touch /var/tmp/data2 && touch /var/tmp/data3 && touch /var/tmp/data4 && touch /var/tmp/data5 && touch /var/tmp/data6
+----
+
+Notice the use of `&&` and the single `RUN` instruction.
+
+Now build and test:
+
+[source,bash]
+----
+[student@workstation myls]$ podman build -t ubi8:myls3 .
+STEP 1/3: FROM registry.redhat.io/ubi8:latest
+STEP 2/3: ENTRYPOINT ["/usr/bin/ls"]
+--> Using cache f0a1e9e7e7a732331c73192ace30d511bd0d184187b3334fc605b98301fd299c
+--> f0a1e9e7e7a
+STEP 3/3: RUN touch /var/tmp/data0 && touch /var/tmp/data1 && touch /var/tmp/data2 && touch /var/tmp/data3 && touch /var/tmp/data4 && touch /var/tmp/data5 && touch /var/tmp/data6
+COMMIT ubi8:myls3
+--> 8c7ee4f9721
+Successfully tagged localhost/ubi8:myls3
+8c7ee4f97216575745e47516f9ee4a867888385b54a8c0104afd7da042171db8
+
+[student@workstation myls]$ podman run ubi8:myls3 /var/tmp
+data0
+data1
+data2
+data3
+data4
+data5
+data6
+----
+
+Looks to have the desired number of files, similar to `ubi8:myls2`.  What about the size of the `LowerDir`:
+
+[source,bash]
+----
+[student@workstation myls]$ podman inspect ubi8:myls3 --format='{{.GraphDriver.Data.LowerDir}}'
+/home/student/.local/share/containers/storage/overlay/f4a999c201294a0a171618e413f1ea7628562e96d8ac148e00708e421aee56a8/diff:/home/student/.local/share/containers/storage/overlay/b38cb92596778e2c18c2bde15f229772fe794af39345dd456c3bf6702cc11eef/diff
+----
+
+Nice.  Back to only two in the `LowerDir`
+
+Stylistically, however, our `Containerfile` is difficult to read.  To improve the readability without modifying the functionality, separate each command on a newline, but make sure to add an escape character `\`.
+This will insure that the `podman build` will execute all of the commands within one single `RUN` layer:
+
+[source,bash]
+----
+[student@workstation myls]$ vim Containerfile
+
+FROM registry.redhat.io/ubi8:latest
+ENTRYPOINT ["/usr/bin/ls"]
+RUN touch /var/tmp/data0 && \
+    touch /var/tmp/data1 && \
+    touch /var/tmp/data2 && \
+    touch /var/tmp/data3 && \
+    touch /var/tmp/data4 && \
+    touch /var/tmp/data5 && \
+    touch /var/tmp/data6
+----
+
+Notice how the last `touch` command _does not_ use the shell escape `\` since we do want to end the `RUN` instruction at that point.
+
+Build and test this version:
+
+[source,bash]
+----
+[student@workstation myls]$ podman build -t ubi8:myls4 .
+STEP 1/3: FROM registry.redhat.io/ubi8:latest
+STEP 2/3: ENTRYPOINT ["/usr/bin/ls"]
+--> Using cache f0a1e9e7e7a732331c73192ace30d511bd0d184187b3334fc605b98301fd299c
+--> f0a1e9e7e7a
+STEP 3/3: RUN touch /var/tmp/data0 &&     touch /var/tmp/data1 &&     touch /var/tmp/data2 &&     touch /var/tmp/data3 &&     touch /var/tmp/data4 &&     touch /var/tmp/data5 &&     touch /var/tmp/data6
+COMMIT ubi8:myls4
+--> bf35668c798
+Successfully tagged localhost/ubi8:myls4
+bf35668c7982c9bd096bd58018b5dd21b8c017248c4d4f45b96260052a9fc94c
+
+[student@workstation myls]$ podman run ubi8:myls4 /var/tmp
+data0
+data1
+data2
+data3
+data4
+data5
+data6
+----
+
+Check the `LowerDir` for the `ubi8:myls4`
+
+[source,bash]
+----
+[student@workstation myls]$ podman inspect ubi8:myls4 --format='{{.GraphDriver.Data.LowerDir}}'
+/home/student/.local/share/containers/storage/overlay/f4a999c201294a0a171618e413f1ea7628562e96d8ac148e00708e421aee56a8/diff:/home/student/.local/share/containers/storage/overlay/b38cb92596778e2c18c2bde15f229772fe794af39345dd456c3bf6702cc11eef/diff
+----
+
+Nice.
+
+=== Can you squash the excessive layers when building?
+
+Yes. Layers can be squashed using --squash or --squash-all
+
+
+[source,bash]
+----
+[student@workstation myls]$ podman build --help | grep squash
+      --squash                                       squash newly built layers into a single new layer
+      --squash-all                                   Squash all layers into a single layer
+
+[student@workstation myls]$ vim Containerfile
+FROM registry.redhat.io/ubi8:latest
+ENTRYPOINT ["/usr/bin/ls"]
+RUN touch /var/tmp/data0
+RUN touch /var/tmp/data1
+RUN touch /var/tmp/data2
+RUN touch /var/tmp/data3
+RUN touch /var/tmp/data4
+RUN touch /var/tmp/data5
+RUN touch /var/tmp/data6
+----
+
+Now build with:
+
+[source,bash]
+----
+[student@workstation myls]$ podman build -t ubi8:squash --squash .
+STEP 1/9: FROM registry.redhat.io/ubi8:latest
+STEP 2/9: ENTRYPOINT ["/usr/bin/ls"]
+STEP 3/9: RUN touch /var/tmp/data0
+STEP 4/9: RUN touch /var/tmp/data1
+STEP 5/9: RUN touch /var/tmp/data2
+STEP 6/9: RUN touch /var/tmp/data3
+STEP 7/9: RUN touch /var/tmp/data4
+STEP 8/9: RUN touch /var/tmp/data5
+STEP 9/9: RUN touch /var/tmp/data6
+COMMIT ubi8:squash
+Getting image source signatures
+Copying blob b38cb9259677 skipped: already exists
+Copying blob 23e15b9ab3f0 skipped: already exists
+Copying blob f4cb19500042 done
+Copying config 1a958042d3 done
+Writing manifest to image destination
+Storing signatures
+--> 1a958042d30
+Successfully tagged localhost/ubi8:squash
+1a958042d30d08789a566e09578d503d300b0dcb0e0b1b03ed39aaff885b12e4
+----
+
+Checking the `LowerDir`:
+
+[source,bash]
+----
+[student@workstation myls]$ podman inspect ubi8:squash --format '{{.GraphDriver.Data.LowerDir}}'
+/home/student/.local/share/containers/storage/overlay/f4a999c201294a0a171618e413f1ea7628562e96d8ac148e00708e421aee56a8/diff:/home/student/.local/share/containers/storage/overlay/b38cb92596778e2c18c2bde15f229772fe794af39345dd456c3bf6702cc11eef/diff
+----
+
+
+[NOTE]
+=====
+There is some storage savings you will get from keeping some of the common layers shared across your container runtime.  If you use --squash-all then you will be left with no shared layers missing out on page cache and potentially increasing the overall storage use on your runtime host.
+=====
+
+Try it with:
+
+[source,bash]
+----
+[student@workstation myls]$ podman build -t ubi8:squashall --squash-all .
+[student@workstation myls]$ podman inspect ubi8:squashall --format '{{.GraphDriver.Data.LowerDir}}'
+<no value>
+----
+
+All the data in this case is in the image’s UpperDir which will become a unique LowerDir when running the squashall image.
+
+
+=== How can you use "OR" logic instead of "AND" logic like the &&
+
+[root@workstation ~]#
+[root@workstation ~]# mkdir test1
+[root@workstation ~]# cd test1/
+[root@workstation test1]# vim Dockerfile
+FROM rhel7
+ENTRYPOINT ["/usr/bin/ls"]
+RUN touch /var/tmp/test1 && touch /var/tmp/test2
+RUN touch /var/tmp/foo/bar/test3 || touch /var/tmp/test3
+[root@workstation test1]# podman build -t myls:1.0 .
+STEP 1: FROM rhel7
+Getting image source signatures
+Skipping fetch of repeat blob sha256:00f17e0b37b0515380a4aece3cb72086c0356fc780ef4526f75476bea36a2c8b
+Skipping fetch of repeat blob sha256:305d73a95c8fece2b53a34e040df1c97eb6b7f7cc4e0a7933465f0b7325e3d72
+Copying config sha256:55a1f4beaf8e2d27982b38e3ecfd458c66753cbfd3a09bcf562877fe60255157
+ 6.44 KB / 6.44 KB [========================================================] 0s
+Writing manifest to image destination
+Storing signatures
+STEP 2: ENTRYPOINT ["/usr/bin/ls"]
+ERRO[0002] HOSTNAME is not supported for OCI image format, hostname 9d3d66a8bfcc will be ignored. Must use `docker` format
+--> 9daeef6d672b0d61990b3ce73a025ae19437d52bee563bbeb45be9527bd6eeb7
+STEP 3: FROM 9daeef6d672b0d61990b3ce73a025ae19437d52bee563bbeb45be9527bd6eeb7
+STEP 4: RUN touch /var/tmp/test1 && touch /var/tmp/test2
+--> 71900ead142213818c31b3a2c5f8e0b65c3d118cc36a93f5ef73ce977e0baac7
+STEP 5: FROM 71900ead142213818c31b3a2c5f8e0b65c3d118cc36a93f5ef73ce977e0baac7
+STEP 6: RUN touch /var/tmp/foo/bar/test3 || touch /var/tmp/test3
+touch: cannot touch '/var/tmp/foo/bar/test3': No such file or directory
+--> b8d4bad38f669d1031fff9719daede8998fd0404b3ec03d686ea671b2caf3400
+STEP 7: COMMIT myls:1.0
+
+[root@workstation ~]# podman run myls:1.0 /var/tmp
+test1
+test2
+test3
+
+Now, try with &&:
+
+[root@workstation test2]# vim Dockerfile
+FROM rhel7
+ENTRYPOINT ["/usr/bin/ls"]
+RUN touch /var/tmp/test1 && touch /var/tmp/test2
+RUN touch /var/tmp/foo/bar/test3 && touch /var/tmp/test3
+
+[root@workstation test2]# podman build -t myls:2.0 .
+STEP 1: FROM rhel7
+STEP 2: ENTRYPOINT ["/usr/bin/ls"]
+--> Using cache 9daeef6d672b0d61990b3ce73a025ae19437d52bee563bbeb45be9527bd6eeb7
+STEP 3: FROM 9daeef6d672b0d61990b3ce73a025ae19437d52bee563bbeb45be9527bd6eeb7
+STEP 4: RUN touch /var/tmp/test1 && touch /var/tmp/test2
+--> Using cache 71900ead142213818c31b3a2c5f8e0b65c3d118cc36a93f5ef73ce977e0baac7
+STEP 5: FROM 71900ead142213818c31b3a2c5f8e0b65c3d118cc36a93f5ef73ce977e0baac7
+STEP 6: RUN touch /var/tmp/foo/bar/test3 && touch /var/tmp/test3
+touch: cannot touch '/var/tmp/foo/bar/test3': No such file or directory
+error building at step {Env:[PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin container=oci] Command:run Args:[touch /var/tmp/foo/bar/test3 && touch /var/tmp/test3] Flags:[] Attrs:map[] Message:RUN touch /var/tmp/foo/bar/test3 && touch /var/tmp/test3 Original:RUN touch /var/tmp/foo/bar/test3 && touch /var/tmp/test3}: error while running runtime: exit status 1

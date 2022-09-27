@@ -22,9 +22,9 @@ endif::[]
 
 === COPY vs ADD
 
-. They both add files to the container filesystem
-. COPY only copies local files,
-. ADD can "copy" plus decompress .tar or retrieve files from a URL
+* They both add files to the container filesystem
+* COPY only copies local files,
+* ADD can "copy" plus decompress .tar or retrieve files from a URL
 
 To investigate `COPY` further, create a new working directory along with a new file called `important`:
 

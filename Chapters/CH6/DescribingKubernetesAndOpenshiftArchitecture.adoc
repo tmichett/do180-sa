@@ -20,4 +20,38 @@ endif::[]
 :imagesdir: ./images/
 
 
-=== 
+=== What is crio?
+
+_Cri-o_ is an OCI compliant container runtime used in Red Hat Openshift Container Platform (ocp).   Two key systemd services running on every k8s/ocp node are:
+
+* kubelet.service
+* crio.service
+
+When Kubernetes needs to run a pod/container the kubelet service on a particular node leverages the _cri-o_ daemon through the Container Runtime Interface (CRI) https://kubernetes.io/docs/concepts/architecture/cri/
+
+_cri-o_ uses `runc` and shared container image libraries to run the containerized workloads.
+
+This flow can be visualized here https://www.redhat.com/en/blog/introducing-cri-o-10
+
+image::crio.png[]
+
+`runc` is currently the default container runtime used by `cri-o` but there are other alternatives like `crun` SEE https://github.com/containers/crun  Although future versions of ocp may use `crun`, `cri-o` will still be an important service used in the ocp architecture.
+
+=== What services differentiate a control node from a compute node?
+
+ K8s/ocp nodes boot up using a systemd init system for userspace.  Two systemd services all nodes run are `kubelet.service` and `crio.service`.  In addition, _Control_ nodes have 4 special pods that have *static* pod definitions configured to start once the `kubelet.service` has started.  They are:
+
+ * *kube-apiserver* - Provides a RESTful service used for inter-component communications
+
+ * *kube-controller-manager* - The Controller Manager Server watches etcd for changes to objects such as replication, namespace, and serviceaccount controller objects, and then uses the API to enforce the specified state. Several such processes create a cluster with one active leader at a time.
+
+ * *kube-scheduler* - Provides a scheduling algorithm which is used to decide which kubelet will run a particular pod
+
+ * *etcd* - Provides a key=value storage/retrieval service providing the current and desired states for the vast majority of resources in the k8s/ocp cluster
+
+ Nodes that run these four key services are called _Control_ nodes.  The other nodes in a cluster typically run user workloads and are called _Compute_ nodes.  It is also possible to isolate specific services like *monitoring*, *logging*, or *networking* on additional nodes.  Those additional nodes are sometimes labeled as _infra_ nodes.
+
+[note]
+=====
+The DO280 course (Red Hat OpenShift Administration II: Operating a Production Kubernetes Cluster) provides additional learning activities related to this topic.
+=====

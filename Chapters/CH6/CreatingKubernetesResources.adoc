@@ -46,6 +46,8 @@ Notice all the different versions available for download including linux, window
 
 image::oc-download.png[]
 
+
+
 Click on *Copy Link* for use inside the `workstation` machine.  If you are having trouble navigating to this site you can use https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest/openshift-client-linux.tar.gz for demonstration purposes.
 
 Use the copied link and run the following on the `workstation` machine as the `student` user:
@@ -111,3 +113,393 @@ Two useful tasks to complete before using it are:
 . Move the `oc` command to a location in your `$PATH`
 
 So we do not conflict with the existing `oc` installed on `workstation`, let us consider only bash completion step.
+
+The `oc` command includes a `completion` sub-command option capable of generating a completion file for shells like `bash` or `zsh`:
+
+[source,bash]
+----
+[student@workstation work]$ ./oc completion --help
+Output shell completion code for the specified shell (bash or zsh). The shell code must be evaluated to provide
+interactive completion of oc commands.  This can be done by sourcing it from the .bash_profile.
+----
+
+To test this, try redirecting `oc completion bash` to a file for inspection:
+
+[source,bash]
+----
+[student@workstation work]$ ./oc completion bash > oc_completion
+[student@workstation work]$ head oc_completion
+
+# bash completion V2 for oc                                   -*- shell-script -*-
+
+__oc_debug()
+{
+    if [[ -n ${BASH_COMP_DEBUG_FILE:-} ]]; then
+        echo "$*" >> "${BASH_COMP_DEBUG_FILE}"
+    fi
+}
+----
+
+A similar completion file has already been added to workstation:
+
+[source,bash]
+----
+[student@workstation work]$ head /etc/bash_completion.d/oc
+
+# bash completion for oc                                   -*- shell-script -*-
+
+__oc_debug()
+{
+    if [[ -n ${BASH_COMP_DEBUG_FILE} ]]; then
+        echo "$*" >> "${BASH_COMP_DEBUG_FILE}"
+    fi
+}
+----
+
+You will need to either source this file or log out of your shell and log back in again for your shell to read the contents.  Once the bash completion file is sourced in, you should be able to use *tab completion* like:
+
+Since the `workstation` machine included both the `oc` binary and the `oc` completion file no modifications are needed:
+
+[source,bash]
+----
+[student@workstation work]$ cd ~
+[student@workstation ~]$ oc [TAB][TAB]
+adm              autoscale        debug            expose           kustomize        new-project      process          rollout          set
+annotate         cancel-build     delete           extract          label            observe          project          rsh              start-build
+api-resources    cluster-info     describe         get              login            options          projects         rsync            status
+api-versions     completion       diff             help             logout           patch            proxy            run              tag
+apply            config           edit             idle             logs             plugin           registry         scale            version
+attach           cp               exec             image            new-app          policy           replace          secrets          wait
+auth             create           explain          import-image     new-build        port-forward     rollback         serviceaccounts  whoami
+
+
+----
+
+Configuring bash completion is recommended.
+
+For cleanup, remove `~/work` directory and make sure you are using `oc` version *4.10.0*:
+
+[source,bash]
+----
+[student@workstation work]$ cd ~
+
+[student@workstation ~]$ rm -rf ~/work
+[student@workstation ~]$
+
+[student@workstation ~]$ oc version
+Client Version: 4.10.0
+error: You must be logged in to the server (Unauthorized)
+----
+
+=== How to get help with `oc` commands?
+
+`oc` is not distributed or installed via yum/dnf.  Therefore additional packages that provide `man` pages are not included.  To get help on a particular command, use the `--help` option.
+
+Consider the `oc login` command:
+
+[source,bash]
+----
+[student@workstation ~]$ oc login --help
+Log in to your server and save login for subsequent use.
+
+ First-time users of the client should run this command to connect to a server, establish an authenticated session, and
+save connection to the configuration file. The default configuration will be saved to your home directory under
+".kube/config".
+----
+
+In addition to this nice description of the command, there is a section that includes usage with working examples of common options:
+
+[source,bash]
+----
+Usage:
+  oc login [URL] [flags]
+
+Examples:
+  # Log in interactively
+  oc login --username=myuser
+
+  # Log in to the given server with the given certificate authority file
+  oc login localhost:8443 --certificate-authority=/path/to/cert.crt
+
+  # Log in to the given server with the given credentials (will not prompt interactively)
+  oc login localhost:8443 --username=myuser --password=mypass
+----
+
+The `--help` also includes a list and description of the various options supported by the command.
+
+[source,bash]
+----
+Options:
+  -p, --password='': Password for server
+  -u, --username='': Username for server
+      --certificate-authority='': Path to a cert file for the certificate authority
+      --insecure-skip-tls-verify=false: If true, the server's certificate will not be checked for validity. This will
+make your HTTPS connections insecure
+      --token='': Bearer token for authentication to the API server
+----
+
+You will also find useful global options that can be used with any of the sub-commands.   Consider `oc options`
+
+[source,bash]
+----
+[student@workstation ~]$ oc options
+The following options can be passed to any command:
+
+      --add-dir-header=false: If true, adds the file directory to the header of the log messages (DEPRECATED: will be
+removed in a future release, see
+https://github.com/kubernetes/enhancements/tree/master/keps/sig-instrumentation/2845-deprecate-klog-specific-flags-in-k8s-components)
+      --alsologtostderr=false:
+...SNIP...
+----
+
+Consider one useful diagnostic global option:
+
+[source,bash]
+----
+  --loglevel=0: Set the level of log output (0-10)
+----
+
+Give this command a try:
+
+[source,bash]
+----
+[student@workstation ~]$ oc login --username=foo --password=bar https://api.na410.prod.nextcle.com:6443
+
+----
+
+Now let's increase the `loglevel`:
+
+[source,bash]
+----
+[student@workstation ~]$ oc login --username=foo --password=bar https://api.na410.prod.nextcle.com:6443 --loglevel=5
+
+[student@workstation ~]$ oc login --username=foo --password=bar https://api.na410.prod.nextcle.com:6443 --loglevel=6
+
+[student@workstation ~]$ oc login --username=foo --password=bar https://api.na410.prod.nextcle.com:6443 --loglevel=10
+----
+
+You should find additional diagnostic details on the terminal when using that global option.
+
+
+=== Reading custom resource definations with `oc explain`
+
+Various controllers and operators use resources to define current and desired states.  There are standard resources exposed through the native Kubernetes API as well as extensions added by Red Hat that are used by controllers and operators.
+
+To get a list of the resources available through the API, use `oc api-resources`.  First, you will need to make sure you are logged in:
+
+[source,bash]
+----
+[student@workstation ~]$ source /usr/local/etc/ocp4.config
+[student@workstation ~]$ oc login -u ${RHT_OCP4_DEV_USER} -p ${RHT_OCP4_DEV_PASSWORD} ${RHT_OCP4_MASTER_API}
+Login successful.
+
+You don't have any projects. You can try to create a new project, by running
+
+    oc new-project <projectname>
+----
+
+Then, run `oc api-resources`
+
+[source,bash]
+----
+[student@workstation ~]$ oc api-resources --help
+Print the supported API resources on the server.
+
+Usage:
+  oc api-resources [flags]
+
+  [student@workstation ~]$ oc api-resources | head
+  NAME                                  SHORTNAMES          APIVERSION                                    NAMESPACED   KIND
+  bindings                                                  v1                                            true         Binding
+  componentstatuses                     cs                  v1                                            false        ComponentStatus
+  configmaps                            cm                  v1                                            true         ConfigMap
+  endpoints                             ep                  v1                                            true         Endpoints
+  events                                ev                  v1                                            true         Event
+  limitranges                           limits              v1                                            true         LimitRange
+  namespaces                            ns                  v1                                            false        Namespace
+  nodes                                 no                  v1                                            false        Node
+  persistentvolumeclaims                pvc                 v1                                            true         PersistentVolumeClaim
+
+----
+
+There are quite a number of these resources.  The exact number is dependent upon which controllers and operators are installed and what version of the cluster is running.
+
+[source,bash]
+----
+[student@workstation ~]$ oc api-resources | wc -l
+215
+----
+
+For a particular resource, the defined fields can be listed out with `oc explain`.  Consider `oc explain pod`
+
+[source,bash]
+----
+[student@workstation ~]$ oc explain pod
+KIND:     Pod
+VERSION:  v1
+
+DESCRIPTION:
+     Pod is a collection of containers that can run on a host. This resource is
+     created by clients and scheduled onto hosts.
+----
+
+In addition to descriptions, the resource fields are listed and described as well. Like:
+
+[source,bash]
+----
+kind	<string>
+  Kind is a string value representing the REST resource this object
+  represents. Servers may infer this from the endpoint the client submits
+  requests to. Cannot be updated. In CamelCase. More info:
+  https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+
+
+metadata	<Object>
+  Standard object's metadata. More info:
+  https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
+
+----
+
+In the example above, the fields `kind:` and `metadata:` are defined by different types of values.  `kind:` uses a `string` while `metadata:` uses an `object`.
+
+To define the valid fileds in the `metadata:` object, use `oc explain pod.metadata` like:
+
+[source,bash]
+----
+[student@workstation ~]$ oc explain pod.metadata
+KIND:     Pod
+VERSION:  v1
+
+RESOURCE: metadata <Object>
+...SNIP...
+----
+
+This is a great way to discover definitions for various fields for a given resource.  It is almost like documentation.
+
+As covered in other courses like the DO280 and DO380, administrators can create a resource by defining the fields in a file formatted using JSON or YAML.
+
+
+=== How to create my first application in Openshift using `oc new-app`?
+
+Consider that you are interested in running an application from an existing container image.  For this activity, you will use the "Hello Openshift!" application from:
+https://hub.docker.com/r/openshift/hello-openshift/
+
+Inspect this image with:
+
+[source,bash]
+----
+[student@workstation ~]$ skopeo inspect docker://docker.io/openshift/hello-openshift
+----
+
+The code is available here: https://github.com/openshift/origin/blob/master/examples/hello-openshift/hello_openshift.go
+
+Deploying using the one from docker.io might result in the following errors:
+
+[source,bash]
+----
+ERRO[0008] error searching registry "docker.io": couldn't search registry "docker.io": error pinging docker registry index.docker.io: Get https://index.docker.io/v2/: dial tcp: lookup index.docker.io on 172.25.250.254:53: server misbehaving
+----
+
+Or
+
+[source,bash]
+----
+W0119 08:12:47.671222   13832 dockerimagelookup.go:237] container image registry lookup failed: docker.io/openshift/hello-openshift:latest: toomanyrequests: You have reached your pull rate limit. You may increase the limit by authenticating and upgrading: https://www.docker.com/increase-rate-limit
+error: unable to locate any local docker images with name "docker.io/openshift/hello-openshift:latest"
+----
+
+To avoid these conditions, you can create a copy using `skopeo copy` to your personal quay.io account or use `quay.io/ajblum/hello-openshift:latest`
+
+To run a containerized application in Openshift there are several options.  Probably the most straightforward, feature-rich method would be to use `oc new-app`.  Alternatives not covered here include:
+
+. `oc run`
+. `oc create`
+. Directly via the API
+. Using an operator
+. Using automation (helm, ansible)
+
+Start with the DO180 Guided Practice activity *openshift-resources*:
+
+[source,bash]
+----
+[student@workstation ~]$  lab openshift-resources start
+
+Setting up workstation for the Guided Exercise: Deploying a Database Server on OpenShift
+
+ Verifying the OpenShift cluster is running:
+ · Log in on OpenShift.........................................  SUCCESS
+ · Check the internal registry is up and running...............  SUCCESS
+ · Ensuring the 'iqrxoa-mysql-openshift' project is absent.....  SUCCESS
+
+----
+
+Next, create a projectrequest using `oc new-project` using the following:
+
+[source,bash]
+----
+[student@workstation ~]$ source /usr/local/etc/ocp4.config
+[student@workstation ~]$ oc new-project ${RHT_OCP4_DEV_USER}-mysql-openshift
+Now using project "iqrxoa-mysql-openshift" on server "https://api.na410.prod.nextcle.com:6443"
+----
+
+Then, use the `oc new-app` to run the containerized "Hello Openshift!" web application:
+
+[source,bash]
+----
+[student@workstation ~]$ oc new-app --image=quay.io/ajblum/hello-openshift:latest
+----
+
+Carefully review all the messages after running the `oc new-app` command.  You will notice commands similar to:
+
+[source,bash]
+----
+--> Creating resources ...
+    imagestream.image.openshift.io "hello-openshift" created
+    deployment.apps "hello-openshift" created
+    service "hello-openshift" created
+----
+
+To check the status of this workload use `oc status`
+
+
+[source,bash]
+----
+[student@workstation ~]$ oc status
+In project iqrxoa-mysql-openshift on server https://api.na410.prod.nextcle.com:6443
+
+svc/hello-openshift - 172.30.216.234 ports 8080, 8888
+  deployment/hello-openshift deploys istag/hello-openshift:latest
+    deployment #2 running for about a minute - 1 pod
+    deployment #1 deployed about a minute ago
+
+
+1 info identified, use 'oc status --suggest' to see details.
+----
+
+To list the common workload-related resources in this project run:
+
+[source,bash]
+----
+[student@workstation ~]$ oc get all
+NAME                                   READY   STATUS    RESTARTS   AGE
+pod/hello-openshift-5fffbfb958-ctsdl   1/1     Running   0          2m28s
+
+NAME                      TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)             AGE
+service/hello-openshift   ClusterIP   172.30.216.234   <none>        8080/TCP,8888/TCP   2m28s
+
+NAME                              READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/hello-openshift   1/1     1            1           2m28s
+
+NAME                                         DESIRED   CURRENT   READY   AGE
+replicaset.apps/hello-openshift-5fffbfb958   1         1         1       2m28s
+replicaset.apps/hello-openshift-787565c7c7   0         0         0       2m28s
+
+NAME                                             IMAGE REPOSITORY                                                                                            TAGS     UPDATED
+imagestream.image.openshift.io/hello-openshift   default-route-openshift-image-registry.apps.na410.prod.nextcle.com/iqrxoa-mysql-openshift/hello-openshift   latest   2 minutes ago
+----
+
+At this point, the "Hello Openshift!" web application is running in a container defined in the hello-openshift pod defined above.
+
+Let us explore each of those resources in greater detail.
+
+==== What are PODS?

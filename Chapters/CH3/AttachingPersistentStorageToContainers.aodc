@@ -153,7 +153,7 @@ drwxr-xr-x. 2 root root 6 Sep 22 10:40 dir1
 
 `dir1` and `file11` are now present.  `file1` is gone. `file9` is now a *6 byte* file.  All changes that we should expect from POSIX filesystem.
 
-Where there any changes to the lowerdir directories: `/data/lower1`,  `/data/lower2`, or `/data/lower3`
+Were there any changes to the lowerdir directories: `/data/lower1`,  `/data/lower2`, or `/data/lower3`
 
 [source,bash]
 ----

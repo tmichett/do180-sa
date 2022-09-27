@@ -48,11 +48,12 @@ Storing signatures
 
 Check the contents of `httpd.tar`
 
-
-student@workstation ~]$ cd httpd-save/
+[source,bash]
+----
+[student@workstation ~]$ cd httpd-save/
 [student@workstation httpd-save]$
 [student@workstation httpd-save]$ tar xvf httpd.tar
----
+----
 
 This will expand the archive into a collection of files including several `json` files and others with `.tar` extensions.
 An inventory of these files is stored in the `manifest.json`:
@@ -117,7 +118,7 @@ These layers will make up the contents of the `lowerdir` in the `overlayfs` moun
 The format used in this example is one of the original image formats based on docker v1.
 From `man podman-save` `--format` can be used to generate images in different formats according to this table:
 
-[cols="4a,4a",options=header]
+[cols="2a,4a",options=header]
 |===
 |Format |Description
 |docker-archive | A tar archive interoperable with docker load(1) (the default)
@@ -349,4 +350,5 @@ Compare with:
 809fe483e88523e7021d76b001a552856f216430023bdc0aeff8fce8df385535  signature-2    signature-5
 ----
 
-If you would like to sign your custom images with your personal GPG signatures consider:https://developers.redhat.com/blog/2019/10/29/verifying-signatures-of-red-hat-container-images
+If you would like to sign your custom images with your personal GPG signatures consider:
+https://developers.redhat.com/blog/2019/10/29/verifying-signatures-of-red-hat-container-images

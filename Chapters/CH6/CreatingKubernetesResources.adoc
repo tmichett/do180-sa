@@ -20,4 +20,94 @@ endif::[]
 :imagesdir: ./images/
 
 
-=== 
+=== What is oc?
+
+`oc` is the openshift client command-line tool used for managing the cluster and applications.
+
+[source,bash]
+----
+[student@workstation ~]$ oc --help
+OpenShift Client
+
+This client helps you develop, build, deploy, and run your applications on any
+OpenShift or Kubernetes cluster. It also includes the administrative
+commands for managing a cluster under the 'adm' subcommand.
+----
+
+Installing this tool on your workstation is dependent on the type of OS you use on your workstation (ie Linux, Windows, MacOS).  Red Hat distributes the `oc` in various forms so that administrators and developers can leverage this CLI on their workstation regardless of the OS they choose to run.
+
+The `oc` command is distributed by Red Hat through this site  https://mirror.openshift.com/pub/openshift-v4/
+
+On the workstation machine, one version of the `oc` command is already installed and ready for your use.  Suppose, you were using a different system and wanted to install `oc` yourself.  How would you accomplish this?
+
+Navigate to https://mirror.openshift.com/pub/openshift-v4/ then clients > ocp.  Click on the appropriate version (should try to match major versions to cluster version).  For this activity find the `latest` version here https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest/
+
+Notice all the different versions available for download including linux, windows, and mac.  Hover and right click over the `openshift-client-linux.tar.gz` like the following:
+
+image::oc-download.png[]
+
+Click on *Copy Link* for use inside the `workstation` machine.  If you are having trouble navigating to this site you can use https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest/openshift-client-linux.tar.gz for demonstration purposes.
+
+Use the copied link and run the following on the `workstation` machine as the `student` user:
+
+[source,bash]
+----
+[student@workstation ~]$ mkdir work
+[student@workstation ~]$ cd work
+[student@workstation work]$ wget https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest/openshift-client-linux.tar.gz
+Connecting to mirror.openshift.com (mirror.openshift.com)|13.227.74.88|:443... connected.
+HTTP request sent, awaiting response... 200 OK
+Length: 52554904 (50M) [application/x-tar]
+Saving to: ‘openshift-client-linux.tar.gz’
+
+openshift-client-linux.tar.gz           100%[=============================================================================>]  50.12M  56.9MB/s    in 0.9s
+
+2022-09-27 09:09:37 (56.9 MB/s) - ‘openshift-client-linux.tar.gz’ saved [52554904/52554904]
+----
+
+In this case, we are extracting and installing on Linux based system.  Other OS variants use different procedures for installing software.  Those are not covered here.
+
+After downloading extract with:
+
+[source,bash]
+----
+[student@workstation work]$ ls
+openshift-client-linux.tar.gz
+[student@workstation work]$ tar xvzf openshift-client-linux.tar.gz
+README.md
+oc
+kubectl
+[student@workstation work]$
+----
+
+From the README.md:
+
+[quote]
+____
+The OpenShift client `oc` simplifies working with Kubernetes and OpenShift
+clusters, offering a number of advantages over `kubectl` such as easy login,
+kube config file management, and access to developer tools. The `kubectl`
+binary is included alongside for when strict Kubernetes compliance is necessary.
+____
+
+The `oc` command provided is pre-compiled and ready to execute.  Source code for `oc` can be found here:  https://github.com/openshift/oc
+
+It is possible to execute `oc` commands using this new version on the `workstation` machine like:
+
+[source,bash]
+----
+[student@workstation work]$ file oc
+oc: ELF 64-bit LSB executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, for GNU/Linux 3.2.0, BuildID[sha1]=516c822a62b91cd97a5b74e4f399dedbd652f3c4, not stripped
+
+[student@workstation work]$ ./oc version
+Client Version: 4.11.5
+Kustomize Version: v4.5.4
+error: You must be logged in to the server (Unauthorized)
+----
+
+Two useful tasks to complete before using it are:
+
+. Configure bash completion
+. Move the `oc` command to a location in your `$PATH`
+
+So we do not conflict with the existing `oc` installed on `workstation`, let us consider only bash completion step.

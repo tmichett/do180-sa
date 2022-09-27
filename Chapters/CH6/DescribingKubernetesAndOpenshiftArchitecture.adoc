@@ -27,7 +27,7 @@ _Cri-o_ is an OCI compliant container runtime used in Red Hat Openshift Containe
 * kubelet.service
 * crio.service
 
-When Kubernetes needs to run a pod/container the kubelet service on a particular node leverages the _cri-o_ daemon through the Container Runtime Interface (CRI) https://kubernetes.io/docs/concepts/architecture/cri/
+When Kubernetes needs to run a pod the kubelet service on a particular node leverages the _cri-o_ daemon through the Container Runtime Interface (CRI) https://kubernetes.io/docs/concepts/architecture/cri/
 
 _cri-o_ uses `runc` and shared container image libraries to run the containerized workloads.
 
@@ -48,6 +48,8 @@ image::crio.png[]
  * *kube-scheduler* - Provides a scheduling algorithm which is used to decide which kubelet will run a particular pod
 
  * *etcd* - Provides a key=value storage/retrieval service providing the current and desired states for the vast majority of resources in the k8s/ocp cluster
+
+SEE https://kubernetes.io/docs/concepts/overview/components/ for additional details.
 
  Nodes that run these four key services are called _Control_ nodes.  The other nodes in a cluster typically run user workloads and are called _Compute_ nodes.  It is also possible to isolate specific services like *monitoring*, *logging*, or *networking* on additional nodes.  Those additional nodes are sometimes labeled as _infra_ nodes.
 

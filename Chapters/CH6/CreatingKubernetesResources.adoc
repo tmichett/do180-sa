@@ -503,3 +503,170 @@ At this point, the "Hello Openshift!" web application is running in a container 
 Let us explore each of those resources in greater detail.
 
 ==== What are PODS?
+
+From `oc explain pod`:
+
+[quote]
+____
+
+Pod is a collection of containers that can run on a host. This resource is created by clients and scheduled onto hosts.
+____
+
+One interesting characteristic of a pod is that all the containers defined in a pod share the same networking namespace.  This also means that those containers (in a particular pod) all run on the same node.
+
+By default, containers in different pods are able to communicate with each other via the *Kubernetes Pod SDN*.  From Figure 6.3 in the DO180 coursebook:
+
+image::pod-network.png[]
+
+Let's explore the pod defined and running in this project:
+
+[source,bash]
+----
+[student@workstation ~]$ oc get pods
+NAME                               READY   STATUS    RESTARTS   AGE
+hello-openshift-5fffbfb958-mxbsf   1/1     Running   0          71m
+----
+
+The *NAME* and *AGE* columns identify obvious properties.
+
+The *READY* column, however, is not so obvious.  The value given here is `1/1`.  The denominator of that ratio is based on the total number of containers defined in the pod specification.  The numerator is the number of containers in a "Ready" state based on the "liveness" of the process (PID=1) running in the container.  In this example, there is one container in the pod spec and it is "alive" and running.  It is possible to configure "liveness" and "readiness" probes differently.  This is beyond the scope of this activity, however.  SEE https://developers.redhat.com/blog/2020/11/10/you-probably-need-liveness-and-readiness-probes#what_are_liveness_probes_for_ for some additional discussion.
+
+The *STATUS* column will include a string indicating the current _phase_ of the pod.  Pod _phases_ include: `Pending`, `Running`, `Succeeded`, `Failed`, `Unknown`.  The value reported here can also include container status for certain pods like `Init:0/2`, `Init:Error`, or even `OOMKilled`.    SEE `oc explain pod.status.phase` for additional descriptions.
+
+*RESTARTS* tracks the number of times the kubelet service needed to restart the pod based on a failed "liveness" probe.
+
+`oc describe` is a useful way to inspect a resource like a pod.  It will present a number of key=value fields in a human-friendly way.  It will also provide additional details from other related resources like `events`.
+
+The *NAME* assigned to your `hello-openshift` pod will differ from the example below (`hello-openshift-5fffbfb958-mxbsf`).  Use your pod's name instead:
+
+[source,bash]
+----
+[student@workstation ~]$ oc describe pod hello-openshift-5fffbfb958-mxbsf
+Name:         hello-openshift-5fffbfb958-mxbsf
+Namespace:    iqrxoa-mysql-openshift
+Priority:     0
+Node:         na410-x58hv-worker-0-l774l/10.0.3.136
+Start Time:   Wed, 28 Sep 2022 08:09:53 -0400
+Labels:       deployment=hello-openshift
+              pod-template-hash=5fffbfb958
+
+...SNIP...
+
+Events:
+  Type    Reason          Age   From               Message
+  ----    ------          ----  ----               -------
+  Normal  Scheduled       43s   default-scheduler  Successfully assigned iqrxoa-mysql-openshift/hello-openshift-5fffbfb958-mxbsf to na410-x58hv-worker-0-l774l
+  Normal  AddedInterface  41s   multus             Add eth0 [10.131.1.136/23] from openshift-sdn
+  Normal  Pulled          41s   kubelet            Container image "quay.io/ajblum/hello-openshift@sha256:552222c922a3fb1f0c1f69ca1779906229cdff303f2a9f576a507d14293cb9e8" already present on machine
+  Normal  Created         41s   kubelet            Created container hello-openshift
+  Normal  Started         41s   kubelet            Started container hello-openshift
+
+----
+
+==== Parsing resource details
+
+Kuberentes uses `etcd` to store details about every resource including the `hello-openshift` pod running the "Hello Openshift!" application.
+
+Commands like `oc describe` provide very interesting information, but it can be overwhelming.  Other useful ways for inspecting this pod would be with `oc get` with `-o` format options.
+
+Try:
+
+[source,bash]
+----
+[student@workstation ~]$ oc get pods
+NAME                               READY   STATUS    RESTARTS   AGE
+hello-openshift-5fffbfb958-mxbsf   1/1     Running   0          3m44s
+
+[student@workstation ~]$ oc get pods -o wide
+NAME                               READY   STATUS    RESTARTS   AGE     IP             NODE                         NOMINATED NODE   READINESS GATES
+hello-openshift-5fffbfb958-mxbsf   1/1     Running   0          3m49s   10.131.1.136   na410-x58hv-worker-0-l774l   <none>           <none>
+----
+
+The extra details with `-o wide` include the *IP* assigned to the pod as well as the *NODE* this pod is running on.
+
+The complete pod details can be listed out in multiple formats (ie json, yaml) like:
+
+[source,bash]
+----
+[student@workstation ~]$ oc get pod hello-openshift-5fffbfb958-mxbsf -o json | head
+{
+    "apiVersion": "v1",
+    "kind": "Pod",
+    "metadata": {
+        "annotations": {
+            "k8s.v1.cni.cncf.io/network-status": "[{\n    \"name\": \"openshift-sdn\",\n    \"interface\": \"eth0\",\n    \"ips\": [\n        \"10.131.1.136\"\n    ],\n    \"default\": true,\n    \"dns\": {}\n}]",
+            "k8s.v1.cni.cncf.io/networks-status": "[{\n    \"name\": \"openshift-sdn\",\n    \"interface\": \"eth0\",\n    \"ips\": [\n        \"10.131.1.136\"\n    ],\n    \"default\": true,\n    \"dns\": {}\n}]",
+            "kubernetes.io/limit-ranger": "LimitRanger plugin set: cpu, memory request for container hello-openshift; cpu, memory limit for container hello-openshift",
+            "openshift.io/generated-by": "OpenShiftNewApp",
+            "openshift.io/scc": "restricted"
+
+
+[student@workstation ~]$ oc get pod hello-openshift-5fffbfb958-mxbsf -o yaml | head
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    k8s.v1.cni.cncf.io/network-status: |-
+      [{
+          "name": "openshift-sdn",
+          "interface": "eth0",
+          "ips": [
+              "10.131.1.136"
+
+----
+
+Techniques for parsing JSON (or yaml) output include using tools like `jq`, those available in the shell (ie `grep`, `awk`, `sed`), or other programming languages like `python`.
+
+Try a few options:
+
+[source,bash]
+----
+[student@workstation ~]$ oc get pod hello-openshift-5fffbfb958-mxbsf -o json | jq '.metadata .name'
+"hello-openshift-5fffbfb958-mxbsf"
+
+[student@workstation ~]$ oc get pod hello-openshift-5fffbfb958-mxbsf -o json | jq '.status .podIP'
+"10.131.1.136"
+
+[student@workstation ~]$ oc get pod hello-openshift-5fffbfb958-mxbsf -o json | jq '.spec .containers[] .image'
+"quay.io/ajblum/hello-openshift@sha256:552222c922a3fb1f0c1f69ca1779906229cdff303f2a9f576a507d14293cb9e8"
+----
+
+[source,bash]
+----
+[student@workstation ~]$ oc get pod hello-openshift-5fffbfb958-mxbsf -o yaml | grep image
+  - image: quay.io/ajblum/hello-openshift@sha256:552222c922a3fb1f0c1f69ca1779906229cdff303f2a9f576a507d14293cb9e8
+    imagePullPolicy: IfNotPresent
+  imagePullSecrets:
+    image: quay.io/ajblum/hello-openshift@sha256:552222c922a3fb1f0c1f69ca1779906229cdff303f2a9f576a507d14293cb9e8
+    imageID: quay.io/ajblum/hello-openshift@sha256:552222c922a3fb1f0c1f69ca1779906229cdff303f2a9f576a507d14293cb9e8
+----
+
+It is also possible to use a *Go Template* for processing the details of a resource.  Consider a few examples:
+
+[source,bash]
+----
+[student@workstation ~]$ oc get pod hello-openshift-5fffbfb958-mxbsf -o go-template='{{.metadata.name}}{{"\n"}}'
+hello-openshift-5fffbfb958-mxbsf
+
+[student@workstation ~]$ oc get pod hello-openshift-5fffbfb958-mxbsf -o go-template='{{.status.podIP}}{{"\n"}}'
+10.131.1.136
+
+[student@workstation ~]$ oc get pod hello-openshift-5fffbfb958-mxbsf -o go-template='{{range .spec.containers}}{{.image}}{{"\n"}}{{end}}'
+quay.io/ajblum/hello-openshift@sha256:552222c922a3fb1f0c1f69ca1779906229cdff303f2a9f576a507d14293cb9e8
+----
+
+A good blog on customizing `oc` output using *Go Templates* is available here: https://www.openshift.com/blog/customizing-oc-output-with-go-templates
+
+Finally, `-o custom-columns` is another way to display specific details that you are interested in.  Consider:
+
+[source,bash]
+----
+[student@workstation ~]$ oc get pods  -o custom-columns='NAME:.metadata.name'
+NAME
+hello-openshift-5fffbfb958-mxbsf
+
+
+[student@workstation ~]$ oc get pods -o custom-columns='NAME:.metadata.name,PODIP:.status.podIP,IMAGE:.spec.containers[].image'
+NAME                               PODIP          IMAGE
+hello-openshift-5fffbfb958-mxbsf   10.131.1.136   quay.io/ajblum/hello-openshift@sha256:552222c922a3fb1f0c1f69ca1779906229cdff303f2a9f576a507d14293cb9e8
+----
